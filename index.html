@@ -1684,6 +1684,19 @@
   .center-perf-table tr.cp-group td { background: var(--surface-tint); font-weight: 800; color: var(--accent-deep); }
   .cp-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 12px; line-height: 1.9; }
   .cp-split-wrap .summary-row { margin-bottom: 14px; }
+  .cp-split-wrap .cp-split-title { padding: 0 2px; line-height: 1.8; }
+  .cp-split-wrap .cp-note { padding: 0 2px; }
+  .cp-hdr-m { font-size: 12px; color: var(--ink-soft); white-space: nowrap; }
+  .cp-hdr-m b { color: var(--ink); font-weight: 800; margin-inline-start: 3px; font-variant-numeric: tabular-nums; }
+  .cp-agent-row { gap: 10px; }
+  .cp-agent-name { color: var(--ink); font-weight: 600; min-width: 0; }
+  .cp-agent-m { display: flex; align-items: center; gap: 14px; font-size: 12.5px; color: var(--ink-soft); white-space: nowrap; }
+  .cp-agent-m b { color: var(--ink); font-weight: 800; margin-inline-start: 3px; font-variant-numeric: tabular-nums; }
+  @media (max-width: 640px) {
+    .cp-hdr-m { display: none; }
+    .cp-agent-row { flex-wrap: wrap; }
+    .cp-agent-m { gap: 8px; font-size: 11.5px; }
+  }
   .center-perf-share { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 3fr) auto; align-items: center; gap: 14px; }
   .center-perf-bar { height: 8px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
   .center-perf-bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-deep)); }
@@ -2198,7 +2211,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
     <div class="panel" id="panel-team-perf">
       <div class="period-label" id="team-perf-label"></div>
-      <div class="list-card cp-split-wrap" id="team-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
+      <div class="cp-split-wrap" id="team-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
     </div>
     <div class="panel" id="panel-kanban"></div>
     <div class="panel" id="panel-attendance"></div>
@@ -2327,7 +2340,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         </div>
       </div>
 
-      <div class="list-card cp-split-wrap" id="center-perf-split" style="margin-bottom:14px;">
+      <div class="cp-split-wrap" id="center-perf-split" style="margin-bottom:14px;">
         <div class="loading-state">در حال بارگذاری...</div>
       </div>
 
@@ -2487,7 +2500,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
       <div id="sup-view-sup-perf" style="display:none;">
         <div class="period-label" id="sup-perf-label"></div>
-        <div class="list-card cp-split-wrap" id="sup-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
+        <div class="cp-split-wrap" id="sup-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
       </div>
 
       <div id="sup-view-map" style="display:none;">
@@ -6826,6 +6839,7 @@ function renderTeamPerf() {
   });
   if (!byCenter.size) { el.innerHTML = '<div class="empty-state">هنوز نیرویی به شما اساین نشده است</div>'; return; }
   el.innerHTML = issuanceSplitHtml(issuanceSplitModel([...byCenter.entries()].map(([title, items]) => ({ title, items }))));
+  bindExpandableToggles(el);
 }
 
 // تب «بررسی عملکرد» سرپرست: همون داده‌ی تب «صدور» (همون فیلتر تاریخ) ولی فقط جمع هر کارشناس به تفکیک غیرانتقالی/انتقال تخفیفی، گروه‌بندی‌شده به تفکیک سنتر
@@ -6848,6 +6862,7 @@ function renderSupPerf() {
   });
   if (!byCenter.size) { el.innerHTML = '<div class="empty-state">هنوز نیرویی به هیچ سنتری اساین نشده است</div>'; return; }
   el.innerHTML = issuanceSplitHtml(issuanceSplitModel([...byCenter.entries()].map(([title, items]) => ({ title, items }))));
+  bindExpandableToggles(el);
 }
 
 function buildSupervisorLeadersHtml(leaderGroups) {
@@ -8094,24 +8109,54 @@ function issuanceSplitModel(groups) {
 function issuanceSplitHtml(model) {
   const { groups, sum } = model;
   const hasUnknown = sum.unknown > 0;
+  const grouped = groups.some(g => g.title != null);
   const cell = v => `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`;
   const cells = x => `${cell(x.normal)}${cell(x.transfer)}${hasUnknown ? cell(x.unknown) : ''}<td class="is-total">${formatNumber(x.total)}</td>`;
-  const body = groups.map(g =>
-    (g.title != null ? `<tr class="cp-group"><td>${escHtml(g.title)} <small>(${formatNumber(g.list.length)} نفر)</small></td>${cells(g.gs)}</tr>` : '')
-    + g.list.map(x => `<tr><td>${escHtml(x.name)}</td>${cells(x)}</tr>`).join('')
-  ).join('');
   const card = (label, v) => `<div class="summary-card"><div class="label">${label}</div><div class="value">${formatNumber(v)}</div></div>`;
-  return `
+  const head = `
     <div class="cp-split-title">تعداد صدور کارشناس‌ها: غیرانتقالی و انتقال تخفیفی <small>(کل بازه‌ی انتخابی)</small></div>
-    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقال تخفیفی', sum.transfer)}</div>
-    <div class="center-perf-scroll">
+    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقال تخفیفی', sum.transfer)}</div>`;
+  const note = hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقال تخفیفی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل بماند.</div>` : '';
+
+  if (grouped) {
+    // مثل تب «صدور»: هر سنتر یک کارت بازشونده؛ داخلش ردیف هر کارشناس
+    const m = (label, v) => `<span class="cp-m">${label} <b>${v ? formatNumber(v) : '—'}</b></span>`;
+    const agentRow = x => `
+        <div class="team-day-row cp-agent-row">
+          <span class="team-day-date cp-agent-name">${escHtml(x.name)}</span>
+          <span class="cp-agent-m">${m('غیرانتقالی', x.normal)}${m('انتقال تخفیفی', x.transfer)}${hasUnknown ? m('نامشخص', x.unknown) : ''}<span class="team-day-badge">${formatNumber(x.total)}</span></span>
+        </div>`;
+    const cards = groups.map(g => `
+      <div class="leader-item">
+        <button class="leader-header" type="button">
+          <div class="leader-name-wrap">
+            <svg class="leader-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            <span class="leader-name">${escHtml(g.title != null ? g.title : '—')}</span>
+          </div>
+          <div class="leader-right">
+            <span class="cp-hdr-m">غیرانتقالی <b>${formatNumber(g.gs.normal)}</b></span>
+            <span class="cp-hdr-m">انتقال تخفیفی <b>${formatNumber(g.gs.transfer)}</b></span>
+            <span class="leader-count">${formatNumber(g.list.length)} نفر</span>
+            <span class="leader-total">${formatNumber(g.gs.total)}</span>
+          </div>
+        </button>
+        <div class="leader-details">
+          <div class="leader-details-inner">${g.list.map(agentRow).join('')}</div>
+        </div>
+      </div>`).join('');
+    return `${head}<div class="list-card">${cards}</div>${note}`;
+  }
+
+  const body = groups.map(g => g.list.map(x => `<tr><td>${escHtml(x.name)}</td>${cells(x)}</tr>`).join('')).join('');
+  return `${head}
+    <div class="list-card"><div class="center-perf-scroll">
       <table class="center-perf-table">
         <thead><tr><th>کارشناس</th><th>غیرانتقالی</th><th>انتقال تخفیفی</th>${hasUnknown ? '<th>نامشخص</th>' : ''}<th class="is-total">صدور کل</th></tr></thead>
         <tbody>${body}</tbody>
         <tfoot><tr><td>جمع کل</td><td>${formatNumber(sum.normal)}</td><td>${formatNumber(sum.transfer)}</td>${hasUnknown ? `<td>${formatNumber(sum.unknown)}</td>` : ''}<td>${formatNumber(sum.total)}</td></tr></tfoot>
       </table>
-    </div>
-    ${hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقال تخفیفی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل بماند.</div>` : ''}`;
+    </div></div>
+    ${note}`;
 }
 
 function renderCenterPerfSplit() {
