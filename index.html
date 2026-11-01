@@ -1660,7 +1660,7 @@
     gap: 14px;
   }
   .pay-name { font-size: 14px; font-weight: 800; color: var(--ink); min-width: 0; }
-  .pay-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+  .pay-metrics { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 10px; }
   .pay-metric { display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; min-width: 0; }
   .pay-metric .k { font-size: 11.5px; color: var(--ink-soft); white-space: nowrap; }
   .pay-metric .v { font-size: 15px; font-weight: 800; color: var(--ink); white-space: nowrap; font-variant-numeric: tabular-nums; }
@@ -1723,7 +1723,7 @@
     .row-badge { min-width: 56px; }
     .azki-rate-row { align-items: flex-start; }
     .azki-payroll-row { grid-template-columns: minmax(0, 1fr) auto; gap: 10px; }
-    .azki-payroll-row .pay-metrics { grid-column: 1 / -1; grid-row: 2; }
+    .azki-payroll-row .pay-metrics { grid-column: 1 / -1; grid-row: 2; gap: 6px; }
     .pay-metric .k { white-space: normal; line-height: 1.5; }
     .row-badge.pay-amount { min-width: 0; }
     .leader-header.azki-head .azki-stats { width: 100%; justify-content: space-around; }
@@ -2282,6 +2282,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         <div class="summary-card">
           <div class="label">مجموع صدور</div>
           <div class="value" id="center-payroll-total">—</div>
+          <div class="label" id="center-payroll-transfer" style="margin-top:6px;font-size:12px;opacity:.8;"></div>
         </div>
         <div class="summary-card">
           <div class="label">میانگین زمان صدور (SLA)</div>
@@ -3599,11 +3600,19 @@ function azkiCurrentWeekRange() {
   return [at(0), at(6)];
 }
 
-// اولین ورود به تب نمودار: بازه‌ی پیش‌فرض = هفته‌ی جاری؛ بعد از آن هرچه کاربر انتخاب کند می‌ماند
+// ۷ روز اخیر: از «امروز منهای ۷ روز» تا امروز (مثلاً امروز ۱۱ام → از ۴ام تا ۱۱ام)؛ هر روز یک روز جلو می‌آید
+function azkiLast7DaysRange() {
+  const [jy, jm, jd] = tehranTodayJalali();
+  const [gy, gm, gd] = jalaliToGregorian(jy, jm, jd).split('-').map(Number);
+  const from = new Date(Date.UTC(gy, gm - 1, gd - 7));
+  return [gregorianToJalali(from.getUTCFullYear(), from.getUTCMonth() + 1, from.getUTCDate()), [jy, jm, jd]];
+}
+
+// اولین ورود به تب نمودار: بازه‌ی پیش‌فرض = ۷ روز اخیر؛ بعد از آن هرچه کاربر انتخاب کند می‌ماند
 function azkiEnsureChartDefaultRange() {
   if (azkiState.chartRangeInit) return;
   azkiState.chartRangeInit = true;
-  const [a, b] = azkiCurrentWeekRange();
+  const [a, b] = azkiLast7DaysRange();
   azkiSetDate('from', a); azkiSetDate('to', b);
   azkiState.bounds = azkiReadBounds();
   ['period', 'centers', 'shifts', 'compare', 'oct', 'payroll'].forEach(k => { azkiState[k].loaded = false; });
@@ -4578,6 +4587,18 @@ function ensureXlsxLib() {
   return xlsxLibPromise;
 }
 
+// «انتقالی» = تعداد سفارش‌های «انتقال تخفیفی = بله» (daily_targets.discount_transfer_count). فقط نمایشیه؛
+// هیچ نقشی تو محاسبه‌ی نرخ و مبلغ حقوق نداره. null = n8n هنوز مقدارش رو برای اون روز ننوشته.
+function payTransferOf(r) {
+  if (r.discount_transfer_count == null) return null;
+  return Math.min(Number(r.target_count) || 0, Math.max(0, Number(r.discount_transfer_count) || 0));
+}
+// مقدار سلول اکسل/نمایش برای مجموع انتقالیِ یک کارشناس: اگه همه‌ی روزهاش ثبت‌نشده بود «—»
+function payTransferCell(a) {
+  if (a.synthetic) return '';
+  if (a.transferUnknown > 0 && a.transfer === 0 && a.transferUnknown >= a.count) return '—';
+  return a.transfer;
+}
 // ریز صدور تک‌تک کارشناس‌ها در بازه‌ی محاسبه حقوق (از daily_targets).
 // کارشناسی که از سنتر حذف شده هم اگه ردیف صدور داشته باشه میاد و با وضعیت «از سنتر حذف شده» مشخص می‌شه.
 async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
@@ -4613,11 +4634,13 @@ async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
   const days = [];
   (rows || []).forEach(r => {
     const id = r.agent_id;
-    if (!byAgent[id]) byAgent[id] = { id, count: 0, daysCount: 0 };
+    if (!byAgent[id]) byAgent[id] = { id, count: 0, daysCount: 0, transfer: 0, unknown: 0 };
     const c = Number(r.target_count) || 0;
+    const tr = payTransferOf(r);
     byAgent[id].count += c;
     byAgent[id].daysCount += 1;
-    days.push({ id, date: toJalaliDisplay(r.report_date_jalali), sort: Number(r.report_date_sort) || 0, count: c });
+    if (tr == null) byAgent[id].unknown += c; else byAgent[id].transfer += tr;
+    days.push({ id, date: toJalaliDisplay(r.report_date_jalali), sort: Number(r.report_date_sort) || 0, count: c, transfer: tr });
   });
 
   const agents = Object.values(byAgent).map(a => {
@@ -4641,7 +4664,7 @@ async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
       backoffice: pr ? (pr.backoffice_id || '') : '',
       centerName: centerName || 'بدون سنتر', payKey,
       status: pr && pr.status === 'disabled' ? 'غیرفعال' : (centerName ? 'در سنتر' : 'از سنتر حذف شده'),
-      count: a.count, daysCount: a.daysCount,
+      count: a.count, daysCount: a.daysCount, transfer: a.transfer, transferUnknown: a.unknown,
       sla: slaMap[a.id] != null ? round2(Number(slaMap[a.id])) : null,
       rate, amount: rate * a.count,
     };
@@ -4660,7 +4683,7 @@ async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
     if (rest > 0) agents.push({
       id: '__rest__' + k, name: 'سایر (کارشناس حذف‌شده / پنل آموزش / ثبت‌نشده)', backoffice: '',
       centerName: dispByKey[k] || c.name, payKey: k, synthetic: true,
-      status: 'باقی‌مانده نسبت به جمع سنتر', count: rest, daysCount: '', sla: null,
+      status: 'باقی‌مانده نسبت به جمع سنتر', count: rest, daysCount: '', transfer: 0, transferUnknown: 0, sla: null,
       rate: c.rate, amount: c.rate * rest,
     });
   });
@@ -4670,6 +4693,23 @@ async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
   const dayRows = days.map(d => ({ ...d, agent: nameById[d.id] })).sort((a, b) =>
     a.agent.centerName.localeCompare(b.agent.centerName, 'fa') || a.agent.name.localeCompare(b.agent.name, 'fa') || a.sort - b.sort);
   return { agents, days: dayRows };
+}
+
+// جمع انتقالیِ هر سنتر از روی ریز کارشناس‌ها (کلید = normCenterKey(نام سنتر در گزارش مالی)).
+// کارشناس‌های حذف‌شده/ثبت‌نشده (ردیف «سایر») ریز ندارن و تو این جمع نمیان.
+function azkiCenterTransferMap(detail) {
+  const m = {};
+  ((detail && detail.agents) || []).forEach(a => {
+    if (a.synthetic || !a.payKey) return;
+    const o = m[a.payKey] || (m[a.payKey] = { transfer: 0, unknown: 0, count: 0 });
+    o.transfer += a.transfer || 0; o.unknown += a.transferUnknown || 0; o.count += a.count || 0;
+  });
+  return m;
+}
+function azkiCenterTransferCell(map, centerName) {
+  const o = map[normCenterKey(centerName)];
+  if (!o) return '—';
+  return (o.unknown >= o.count && o.count > 0 && o.transfer === 0) ? '—' : o.transfer;
 }
 
 // فقط برای خروجی اکسل: نام کوتاه/فامیلیِ مرکز در گزارش مالی («رضوانی») رو به نام کاملِ پروفایل سنتر
@@ -4716,19 +4756,24 @@ async function exportAzkiPayrollExcel() {
       // سرگروه: فقط تعداد صدور (بدون نرخ و مبلغ)
       const lb = azkiState.bounds;
       const meta2 = `فقط تعداد صدور   |   شرکت: ${azkiState.companies.all ? 'همه شرکت‌ها' : azkiActiveScopes().join('، ')}`;
+      // ریز کارشناس‌ها قبل از شیت اصلی گرفته می‌شه تا «انتقالی» هر سنتر هم تو شیت اصلی بیاد (فقط نمایشی)
+      let det = null, detErr = null;
+      try { det = await fetchAzkiPayrollAgentDetail(lb, centerData); } catch (e0) { detErr = e0; }
+      const trMap = azkiCenterTransferMap(det);
+      const trTotal = Object.values(trMap).reduce((s0, o) => s0 + o.transfer, 0);
       const centersWs = azkiXlsxSheet({
         title: 'صدور سنترها', bounds: lb, metaLine2: meta2,
-        headers: ['ردیف', 'نام سنتر', 'تعداد صدور'],
-        rows: centerData.map((c, i) => [i + 1, dn(c), c.count]),
-        total: ['', 'جمع کل', grandCount],
-        widths: [8, 36, 16], fmts: ['int', 'text', 'int'],
+        headers: ['ردیف', 'نام سنتر', 'تعداد صدور', 'از این تعداد انتقالی'],
+        rows: centerData.map((c, i) => [i + 1, dn(c), c.count, azkiCenterTransferCell(trMap, c.name)]),
+        total: ['', 'جمع کل', grandCount, trTotal],
+        widths: [8, 36, 16, 20], fmts: ['int', 'text', 'int', 'int'],
       });
       const lwb = XLSX.utils.book_new();
       lwb.Workbook = { Views: [{ RTL: true }] };
       XLSX.utils.book_append_sheet(lwb, centersWs, 'صدور سنترها');
       try {
         const keys = azkiState.payroll.leaderKeys;
-        const det = await fetchAzkiPayrollAgentDetail(lb, centerData);
+        if (detErr) throw detErr;
         // کارشناس‌های سنترهای این سرگروه + همه‌ی کسانی که از سنتر حذف شدن (با وضعیت مشخص)
         const agents = det.agents.filter(a => a.synthetic ? (keys && [...keys].some(lk => (' ' + lk + ' ').includes(' ' + a.payKey + ' '))) : (a.status === 'از سنتر حذف شده' || (keys && keys.has(normCenterKey(a.centerName)))));
         const okIds = new Set(agents.map(a => a.id));
@@ -4737,17 +4782,17 @@ async function exportAzkiPayrollExcel() {
           const tot = agents.reduce((s0, a) => s0 + a.count, 0);
           XLSX.utils.book_append_sheet(lwb, azkiXlsxSheet({
             title: 'ریز صدور کارشناس‌ها', bounds: lb, metaLine2: meta2,
-            headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور'],
-            rows: agents.map(a => [a.centerName, a.name, a.backoffice, a.status, a.daysCount, a.count]),
-            total: ['جمع کل', '', '', '', '', tot],
-            widths: [32, 28, 18, 18, 12, 14], fmts: ['text', 'text', 'text', 'text', 'int', 'int'],
+            headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور', 'از این تعداد انتقالی'],
+            rows: agents.map(a => [a.centerName, a.name, a.backoffice, a.status, a.daysCount, a.count, payTransferCell(a)]),
+            total: ['جمع کل', '', '', '', '', tot, agents.reduce((s0, a) => s0 + (a.synthetic ? 0 : (a.transfer || 0)), 0)],
+            widths: [32, 28, 18, 18, 12, 14, 20], fmts: ['text', 'text', 'text', 'text', 'int', 'int', 'int'],
           }), 'ریز کارشناس‌ها');
           XLSX.utils.book_append_sheet(lwb, azkiXlsxSheet({
             title: 'جزئیات روزانه کارشناس‌ها', bounds: lb, metaLine2: meta2,
-            headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور'],
-            rows: days.map(d => [d.agent.centerName, d.agent.name, d.agent.status, d.date, d.count]),
-            total: ['جمع کل', '', '', '', days.reduce((s0, d) => s0 + d.count, 0)],
-            widths: [32, 28, 18, 16, 14], fmts: ['text', 'text', 'text', 'text', 'int'],
+            headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور', 'از این تعداد انتقالی'],
+            rows: days.map(d => [d.agent.centerName, d.agent.name, d.agent.status, d.date, d.count, d.transfer == null ? '—' : d.transfer]),
+            total: ['جمع کل', '', '', '', days.reduce((s0, d) => s0 + d.count, 0), days.reduce((s0, d) => s0 + (d.transfer || 0), 0)],
+            widths: [32, 28, 18, 16, 14, 20], fmts: ['text', 'text', 'text', 'text', 'int', 'int'],
           }), 'جزئیات روزانه');
         }
       } catch (detailErr) {
@@ -4759,13 +4804,18 @@ async function exportAzkiPayrollExcel() {
     }
 
     const bounds = azkiState.bounds;
+    // ریز کارشناس‌ها یک بار گرفته می‌شه؛ هم برای ستون «انتقالی» شیت اصلی و هم شیت‌های ریز (اگه خطا بده، اکسل اصلی بدون انتقالی ساخته می‌شه)
+    let detail = null, detailFail = null;
+    try { detail = await fetchAzkiPayrollAgentDetail(bounds, centerData); } catch (e0) { detailFail = e0; }
+    const trMap = azkiCenterTransferMap(detail);
+    const trTotal = Object.values(trMap).reduce((s0, o) => s0 + o.transfer, 0);
     const aoa = [
-      ['نام سنتر', 'تعداد صدور', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور (ریال)', 'مبلغ قابل پرداخت (ریال)'],
-      ...centerData.map(c => [dn(c), c.count, c.avgMin != null ? c.avgMin : '—', c.rate, c.amount]),
-      ['جمع کل', grandCount, '', '', grandAmount],
+      ['نام سنتر', 'تعداد صدور', 'از این تعداد انتقالی', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور (ریال)', 'مبلغ قابل پرداخت (ریال)'],
+      ...centerData.map(c => [dn(c), c.count, azkiCenterTransferCell(trMap, c.name), c.avgMin != null ? c.avgMin : '—', c.rate, c.amount]),
+      ['جمع کل', grandCount, trTotal, '', '', grandAmount],
     ];
     const ws = XLSX.utils.aoa_to_sheet(aoa);
-    ws['!cols'] = [{ wch: 32 }, { wch: 14 }, { wch: 22 }, { wch: 18 }, { wch: 22 }];
+    ws['!cols'] = [{ wch: 32 }, { wch: 14 }, { wch: 20 }, { wch: 22 }, { wch: 18 }, { wch: 22 }];
 
     const FONT_NAME = 'B Nazanin';
     const thinBorder = { style: 'thin', color: { rgb: 'FF999999' } };
@@ -4791,7 +4841,7 @@ async function exportAzkiPayrollExcel() {
           fill: isTotalRow ? { patternType: 'solid', fgColor: { rgb: 'FFD9D9D9' } } : undefined,
         };
         // جداکننده‌ی سه‌رقمی (۱,۲۳۴,۵۶۷) برای همه‌ی ستون‌های عددی؛ میانگین زمان با دو رقم اعشار
-        if (!isHeader && typeof ws[addr].v === 'number') ws[addr].z = C === 2 ? '#,##0.00' : '#,##0';
+        if (!isHeader && typeof ws[addr].v === 'number') ws[addr].z = C === 3 ? '#,##0.00' : '#,##0';
       }
     }
 
@@ -4801,25 +4851,25 @@ async function exportAzkiPayrollExcel() {
 
     // شیت‌های ریز کارشناس‌ها (اگه دریافتش با خطا مواجه بشه، اکسل اصلی همچنان ساخته می‌شه)
     try {
-      const detail = await fetchAzkiPayrollAgentDetail(bounds, centerData);
-      const meta2 = 'مبلغ هر کارشناس = تعداد صدور او × نرخ هر صدور سنتر (برآورد)';
+      if (detailFail) throw detailFail;
+      const meta2 = 'مبلغ هر کارشناس = تعداد صدور او × نرخ هر صدور سنتر (برآورد)   |   ستون «انتقالی» فقط نمایشی است و در مبلغ نقشی ندارد';
       if (detail.agents.length) {
         const totCount = detail.agents.reduce((s0, a) => s0 + a.count, 0);
         const totAmount = detail.agents.reduce((s0, a) => s0 + a.amount, 0);
         const agentsWs = azkiXlsxSheet({
           title: 'محاسبه حقوق — ریز صدور کارشناس‌ها', bounds, metaLine2: meta2,
-          headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور سنتر (ریال)', 'مبلغ برآوردی (ریال)'],
-          rows: detail.agents.map(a => [a.centerName, a.name, a.backoffice, a.status, a.daysCount, a.count, a.sla != null ? a.sla : '', a.rate, a.amount]),
-          total: ['جمع کل', '', '', '', '', totCount, '', '', totAmount],
-          widths: [32, 28, 18, 18, 12, 14, 22, 22, 22], fmts: ['text', 'text', 'text', 'text', 'int', 'int', 'pct', 'int', 'int'],
+          headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور', 'از این تعداد انتقالی', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور سنتر (ریال)', 'مبلغ برآوردی (ریال)'],
+          rows: detail.agents.map(a => [a.centerName, a.name, a.backoffice, a.status, a.daysCount, a.count, payTransferCell(a), a.sla != null ? a.sla : '', a.rate, a.amount]),
+          total: ['جمع کل', '', '', '', '', totCount, detail.agents.reduce((s0, a) => s0 + (a.synthetic ? 0 : (a.transfer || 0)), 0), '', '', totAmount],
+          widths: [32, 28, 18, 18, 12, 14, 20, 22, 22, 22], fmts: ['text', 'text', 'text', 'text', 'int', 'int', 'int', 'pct', 'int', 'int'],
         });
         XLSX.utils.book_append_sheet(wb, agentsWs, 'ریز کارشناس‌ها');
         const daysWs = azkiXlsxSheet({
           title: 'محاسبه حقوق — جزئیات روزانه کارشناس‌ها', bounds, metaLine2: meta2,
-          headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور'],
-          rows: detail.days.map(d => [d.agent.centerName, d.agent.name, d.agent.status, d.date, d.count]),
-          total: ['جمع کل', '', '', '', detail.days.reduce((s0, d) => s0 + d.count, 0)],
-          widths: [32, 28, 18, 16, 14], fmts: ['text', 'text', 'text', 'text', 'int'],
+          headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور', 'از این تعداد انتقالی'],
+          rows: detail.days.map(d => [d.agent.centerName, d.agent.name, d.agent.status, d.date, d.count, d.transfer == null ? '—' : d.transfer]),
+          total: ['جمع کل', '', '', '', detail.days.reduce((s0, d) => s0 + d.count, 0), detail.days.reduce((s0, d) => s0 + (d.transfer || 0), 0)],
+          widths: [32, 28, 18, 16, 14, 20], fmts: ['text', 'text', 'text', 'text', 'int', 'int'],
         });
         XLSX.utils.book_append_sheet(wb, daysWs, 'جزئیات روزانه');
       }
@@ -7772,10 +7822,12 @@ async function loadCenterPayroll() {
     const byAgent = {};
     const days = [];
     rows.forEach(r => {
-      const a = byAgent[r.agent_id] || (byAgent[r.agent_id] = { count: 0, daysCount: 0 });
+      const a = byAgent[r.agent_id] || (byAgent[r.agent_id] = { count: 0, daysCount: 0, transfer: 0, unknown: 0 });
       const c = Number(r.target_count) || 0;
+      const tr = payTransferOf(r);
       a.count += c; a.daysCount += 1;
-      days.push({ id: r.agent_id, date: toJalaliDisplay(r.report_date_jalali), sort: Number(r.report_date_sort) || 0, count: c });
+      if (tr == null) a.unknown += c; else a.transfer += tr;
+      days.push({ id: r.agent_id, date: toJalaliDisplay(r.report_date_jalali), sort: Number(r.report_date_sort) || 0, count: c, transfer: tr });
     });
     const sumAgents = Object.values(byAgent).reduce((s0, a) => s0 + a.count, 0);
 
@@ -7807,9 +7859,10 @@ async function loadCenterPayroll() {
     // ریز کارشناس‌ها: فعال‌ها و پنل آموزش همیشه (حتی با صدور صفر)، غیرفعال فقط اگه تو بازه صدور داشته باشه
     const agents = agentProfiles.map(p => {
       const st = centerAgentStatus(p);
-      const a = byAgent[p.id] || { count: 0, daysCount: 0 };
+      const a = byAgent[p.id] || { count: 0, daysCount: 0, transfer: 0, unknown: 0 };
       return { id: p.id, name: p.full_name || p.backoffice_id || '—', backoffice: p.backoffice_id || '',
         disabled: st.disabled, training: st.training, status: st.label, count: a.count, daysCount: a.daysCount,
+        transfer: a.transfer, transferUnknown: a.unknown,
         rate, amount: rate * a.count };
     }).filter(a => !a.disabled || a.count > 0)
       .sort((x, y) => (x.disabled - y.disabled) || (x.training - y.training) || y.count - x.count || x.name.localeCompare(y.name, 'fa'));
@@ -7820,6 +7873,11 @@ async function loadCenterPayroll() {
     // اختلاف جمع سنتر (گزارش مالی) با جمع کارشناس‌ها: کارشناس حذف‌شده از سیستم / ثبت‌نشده (فقط وقتی مثبته)
     const restCount = fromReport ? count - sumAgents : 0;
     const rest = restCount > 0 ? { count: restCount, rate, amount: rate * restCount } : null;
+    // «انتقالی» خود سنتر = جمع انتقالیِ کارشناس‌هاش (فقط نمایشی). «سایر» (کارشناس حذف‌شده/ثبت‌نشده) ریز ندارد.
+    const allAg = Object.values(byAgent);
+    center.transfer = allAg.reduce((s0, a) => s0 + a.transfer, 0);
+    center.transferUnknown = allAg.reduce((s0, a) => s0 + a.unknown, 0);
+    center.transferPartial = !!rest || center.transferUnknown > 0;
 
     if (!fromReport && count === 0 && !agents.length) {
       Object.assign(centerPayrollState, { bounds, name: ownName, center: null, agents: [], rest: null, days: [], loaded: true });
@@ -7843,6 +7901,8 @@ function renderCenterPayroll() {
   const c = st.center;
   if (!c) return;
   document.getElementById('center-payroll-total').textContent = formatNumber(c.count);
+  const trEl = document.getElementById('center-payroll-transfer');
+  if (trEl) trEl.textContent = `از این تعداد انتقالی: ${formatNumber(c.transfer || 0)}`;
   document.getElementById('center-payroll-avg').innerHTML = c.hasSla ? `${formatNumber(c.avgMin)}<span class="unit">دقیقه</span>` : '—';
   document.getElementById('center-payroll-amount').innerHTML = `${formatNumber(c.amount)}<span class="unit">ریال</span>`;
 
@@ -7851,6 +7911,7 @@ function renderCenterPayroll() {
       <div class="pay-name">${escHtml(st.name || 'سنتر شما')}</div>
       <div class="pay-metrics">
         <div class="pay-metric"><span class="k">تعداد صدور</span><span class="v">${formatNumber(c.count)}</span></div>
+        <div class="pay-metric"${c.transferPartial ? ' title="جمع انتقالی کارشناس‌های ثبت‌شده؛ صدور «سایر» و روزهای ثبت‌نشده در آن نیست"' : ''}><span class="k">از این تعداد انتقالی</span><span class="v">${formatNumber(c.transfer || 0)}</span></div>
         <div class="pay-metric${c.hasSla ? '' : ' is-missing'}"><span class="k">میانگین زمان صدور (SLA)</span><span class="v">${c.hasSla ? `${formatNumber(c.avgMin)}<small>دقیقه</small>` : 'ثبت نشده'}</span></div>
         <div class="pay-metric"><span class="k">نرخ هر صدور</span><span class="v">${formatNumber(c.rate)}<small>ریال</small></span></div>
       </div>
@@ -7865,6 +7926,7 @@ function renderCenterPayroll() {
       </div>
       <div class="pay-metrics">
         <div class="pay-metric"><span class="k">تعداد صدور</span><span class="v">${formatNumber(a.count)}</span></div>
+        <div class="pay-metric"><span class="k">از این تعداد انتقالی</span><span class="v">${payTransferCell(a) === '—' ? '—' : formatNumber(a.transfer)}</span></div>
         <div class="pay-metric"><span class="k">تعداد روز</span><span class="v">${formatNumber(a.daysCount)}</span></div>
         <div class="pay-metric"><span class="k">نرخ هر صدور</span><span class="v">${formatNumber(a.rate)}<small>ریال</small></span></div>
       </div>
@@ -7893,35 +7955,35 @@ async function exportCenterPayrollExcel() {
     const { bounds, center: c, agents, rest, days } = st;
     const name = st.name || 'سنتر';
     const meta = `سنتر: ${name}`;
-    const note = 'مبلغ هر کارشناس = تعداد صدور او × نرخ هر صدور سنتر (برآورد)';
+    const note = 'مبلغ هر کارشناس = تعداد صدور او × نرخ هر صدور سنتر (برآورد)   |   ستون «انتقالی» فقط نمایشی است و در مبلغ نقشی ندارد';
 
     const sheets = [];
     sheets.push(['محاسبه حقوق', azkiXlsxSheet({
       title: 'محاسبه حقوق', bounds, metaLine2: meta,
-      headers: ['نام سنتر', 'تعداد صدور', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور (ریال)', 'مبلغ قابل پرداخت (ریال)'],
-      rows: [[name, c.count, c.hasSla ? c.avgMin : '—', c.rate, c.amount]],
-      total: ['جمع کل', c.count, '', '', c.amount],
-      widths: [32, 14, 22, 18, 22], fmts: ['text', 'int', 'pct', 'int', 'int'],
+      headers: ['نام سنتر', 'تعداد صدور', 'از این تعداد انتقالی', 'میانگین زمان صدور (دقیقه)', 'نرخ هر صدور (ریال)', 'مبلغ قابل پرداخت (ریال)'],
+      rows: [[name, c.count, c.transfer || 0, c.hasSla ? c.avgMin : '—', c.rate, c.amount]],
+      total: ['جمع کل', c.count, c.transfer || 0, '', '', c.amount],
+      widths: [32, 14, 20, 22, 18, 22], fmts: ['text', 'int', 'int', 'pct', 'int', 'int'],
     })]);
 
-    const agentRows = agents.map(a => [name, a.name, a.backoffice, a.status, a.daysCount, a.count, a.rate, a.amount]);
-    if (rest) agentRows.push([name, 'سایر (کارشناس حذف‌شده / ثبت‌نشده)', '', 'باقی‌مانده نسبت به جمع سنتر', '', rest.count, rest.rate, rest.amount]);
+    const agentRows = agents.map(a => [name, a.name, a.backoffice, a.status, a.daysCount, a.count, payTransferCell(a), a.rate, a.amount]);
+    if (rest) agentRows.push([name, 'سایر (کارشناس حذف‌شده / ثبت‌نشده)', '', 'باقی‌مانده نسبت به جمع سنتر', '', rest.count, '', rest.rate, rest.amount]);
     if (agentRows.length) {
       sheets.push(['ریز کارشناس‌ها', azkiXlsxSheet({
         title: 'محاسبه حقوق — ریز صدور کارشناس‌ها', bounds, metaLine2: `${meta}   |   ${note}`,
-        headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور', 'نرخ هر صدور سنتر (ریال)', 'مبلغ برآوردی (ریال)'],
+        headers: ['نام سنتر', 'نام کارشناس', 'یوزر بک‌آفیس', 'وضعیت', 'تعداد روز', 'تعداد صدور', 'از این تعداد انتقالی', 'نرخ هر صدور سنتر (ریال)', 'مبلغ برآوردی (ریال)'],
         rows: agentRows,
-        total: ['جمع کل', '', '', '', '', agentRows.reduce((s0, r) => s0 + r[5], 0), '', agentRows.reduce((s0, r) => s0 + r[7], 0)],
-        widths: [32, 28, 18, 24, 12, 14, 22, 22], fmts: ['text', 'text', 'text', 'text', 'int', 'int', 'int', 'int'],
+        total: ['جمع کل', '', '', '', '', agentRows.reduce((s0, r) => s0 + r[5], 0), agents.reduce((s0, a) => s0 + (a.transfer || 0), 0), '', agentRows.reduce((s0, r) => s0 + r[8], 0)],
+        widths: [32, 28, 18, 24, 12, 14, 20, 22, 22], fmts: ['text', 'text', 'text', 'text', 'int', 'int', 'int', 'int', 'int'],
       })]);
     }
     if (days.length) {
       sheets.push(['جزئیات روزانه', azkiXlsxSheet({
         title: 'محاسبه حقوق — جزئیات روزانه کارشناس‌ها', bounds, metaLine2: meta,
-        headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور'],
-        rows: days.map(d => [name, d.agent.name, d.agent.status, d.date, d.count]),
-        total: ['جمع کل', '', '', '', days.reduce((s0, d) => s0 + d.count, 0)],
-        widths: [32, 28, 18, 16, 14], fmts: ['text', 'text', 'text', 'text', 'int'],
+        headers: ['نام سنتر', 'نام کارشناس', 'وضعیت', 'تاریخ', 'تعداد صدور', 'از این تعداد انتقالی'],
+        rows: days.map(d => [name, d.agent.name, d.agent.status, d.date, d.count, d.transfer == null ? '—' : d.transfer]),
+        total: ['جمع کل', '', '', '', days.reduce((s0, d) => s0 + d.count, 0), days.reduce((s0, d) => s0 + (d.transfer || 0), 0)],
+        widths: [32, 28, 18, 16, 14, 20], fmts: ['text', 'text', 'text', 'text', 'int', 'int'],
       })]);
     }
     azkiXlsxSave(sheets, 'محاسبه-حقوق', bounds);
