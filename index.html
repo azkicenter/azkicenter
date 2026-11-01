@@ -2126,7 +2126,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
     <div class="subtabs" id="team-subtabs" style="display:none;">
       <button class="subtab-btn" data-team-tab="azki-shifts" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-        تعداد به تفکیک شیفت
+        درصد صدور به تفکیک شیفت
       </button>
       <button class="subtab-btn" data-team-tab="azki-compare" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/></svg>
@@ -2368,6 +2368,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21Z"/><circle cx="12" cy="9.5" r="2.5"/></svg>
           نقشه سنتر
         </button>
+        <button class="tab-btn" data-sup-tab="sup-perf" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+          بررسی عملکرد
+        </button>
         <button class="tab-btn" data-sup-tab="bugs" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8a4 4 0 0 1 4 4v4a4 4 0 0 1-8 0v-4a4 4 0 0 1 4-4Z"/><path d="M8 12H4M20 12h-4M12 8V4M9 4l1.5 2M15 4l-1.5 2M6 6l2 2M18 6l-2 2M6 18l2-2M18 18l-2-2"/></svg>
           خطای صدور
@@ -2421,7 +2425,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         </button>
           <button class="subtab-btn" data-sup-tab="azki-shifts" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
-          تعداد به تفکیک شیفت
+          درصد صدور به تفکیک شیفت
         </button>
           <button class="subtab-btn" data-sup-tab="azki-compare" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/></svg>
@@ -2479,6 +2483,11 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       <div class="list-card" id="supervisor-list">
         <div class="loading-state">در حال بارگذاری...</div>
       </div>
+      </div>
+
+      <div id="sup-view-sup-perf" style="display:none;">
+        <div class="period-label" id="sup-perf-label"></div>
+        <div class="list-card cp-split-wrap" id="sup-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
       </div>
 
       <div id="sup-view-map" style="display:none;">
@@ -3322,6 +3331,16 @@ document.querySelectorAll('#center-tabs .tab-btn').forEach(btn => {
     document.querySelectorAll('#supervisor-subtabs .subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.supTab === which));
     $('sup-view-targets').style.display = which === 'targets' ? '' : 'none';
     $('sup-view-map').style.display = which === 'map' ? '' : 'none';
+    $('sup-view-sup-perf').style.display = which === 'sup-perf' ? '' : 'none';
+    // فیلتر تاریخ تب «صدور» برای تب «بررسی عملکرد» هم استفاده می‌شه؛ همون المنت بین دو نما جابه‌جا می‌شه
+    const supFilterEl = $('sup-filter');
+    if (supFilterEl && (which === 'sup-perf' || which === 'targets')) {
+      const dest = $(which === 'sup-perf' ? 'sup-view-sup-perf' : 'sup-view-targets');
+      if (supFilterEl.parentNode !== dest) dest.insertBefore(supFilterEl, dest.firstChild);
+      const exFld = $('sup-export-btn') && $('sup-export-btn').closest('.azki-fld');
+      if (exFld) exFld.style.display = which === 'sup-perf' ? 'none' : '';
+    }
+    if (which === 'sup-perf') renderSupPerf();
     $('sup-view-azki-period').style.display = which === 'azki-period' ? '' : 'none';
     $('sup-view-azki-centers').style.display = which === 'azki-centers' ? '' : 'none';
     $('sup-view-azki-shifts').style.display = which === 'azki-shifts' ? '' : 'none';
@@ -4064,8 +4083,8 @@ function renderAzkiActiveStatusView() {
 }
 
 // ============================================================
-// تب «تعداد به تفکیک شیفت»: صدور ازکی سنترها به تفکیک شیفت بامداد (۰ تا ۸)، صبح (۸ تا ۱۶) و شب (۱۶ تا ۲۴)
-// بر اساس ساعتِ «تاریخ بستن» سفارش (کلید other در جدول = بامداد، evening = شب). داده از جدول azki_center_shift_report:
+// تب «درصد صدور به تفکیک شیفت»: صدور ازکی سنترها به تفکیک شیفت بامداد (۰ تا ۸)، صبح (۸ تا ۱۶) و شب (۱۶ تا ۲۴)
+// بر اساس ساعتِ «تاریخ صدور - میلادی» سفارش (کلید other در جدول = بامداد، evening = شب). داده از جدول azki_center_shift_report:
 //   center_name = '__ALL__' → total_orders (کل صدور شیفت) + center_orders (صدور همه‌ی سنترها)
 //   center_name = نام مرکز   → center_orders همون مرکز
 // ============================================================
@@ -4083,6 +4102,14 @@ function azkiShiftEsc(v) {
   return String(v == null ? '' : v).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 function azkiPct(part, whole) { return whole ? round2(part / whole * 100) : 0; }
+// درصد صدور «پایان شیفت»: تجمعی از ابتدای روز تا پایان همان شیفت (بامداد تا ساعت ۸، صبح تا ۱۶، شب تا ۲۴)
+// = صدور ازکی سنتر تا پایان شیفت ÷ کل صدور تا پایان همان شیفت (ترتیب شیفت‌ها: بامداد ← صبح ← شب؛ روی بازه‌ی چندروزه جمع روزها)
+const AZKI_SHIFT_END_LABEL = { other: 'تا ساعت ۸', morning: 'تا ساعت ۱۶', evening: 'تا ساعت ۲۴ (۰۰:۰۰)' };
+function azkiShiftCumulative(g) {
+  const out = {}; let c = 0, t = 0;
+  AZKI_SHIFTS.forEach(sh => { c += g[sh.key].center; t += g[sh.key].total; out[sh.key] = { center: c, total: t }; });
+  return out;
+}
 function emptyShiftBucket() {
   return { morning: { total: 0, center: 0 }, evening: { total: 0, center: 0 }, other: { total: 0, center: 0 } };
 }
@@ -4214,8 +4241,10 @@ function renderAzkiShiftsView() {
   const summary = rows.length
     ? `<div class="shift-summary">جمع تأثیر شیفت‌ها = درصد صدور کل بازه: <b>${formatNumber(azkiPct(centerAll, totalAll))}٪</b> (${formatNumber(centerAll)} از ${formatNumber(totalAll)} صدور)</div>`
     : '';
+  const cum = azkiShiftCumulative(g);
   cardsEl.innerHTML = summary + AZKI_SHIFTS.map(sh => {
     const b = g[sh.key];
+    const endPct = azkiPct(cum[sh.key].center, cum[sh.key].total);   // درصد صدور تا پایان این شیفت
     const impact = azkiPct(b.center, totalAll);          // چند درصد از کل صدور را در این شیفت زدیم
     const pctOfShift = azkiPct(b.center, b.total);       // درصد صدور خودِ این شیفت
     const pctOfCenters = azkiPct(b.center, centerAll);   // سهم این شیفت از صدور ازکی سنتر
@@ -4238,6 +4267,10 @@ function renderAzkiShiftsView() {
           <div class="shift-metric">
             <div class="shift-metric-row"><span>درصد صدور همین شیفت (از ${formatNumber(b.total)})</span><b>${formatNumber(pctOfShift)}٪</b></div>
             <div class="shift-bar"><i style="width:${Math.min(100, pctOfShift)}%"></i></div>
+          </div>
+          <div class="shift-metric">
+            <div class="shift-metric-row"><span>درصد صدور پایان شیفت (${AZKI_SHIFT_END_LABEL[sh.key]}؛ ${formatNumber(cum[sh.key].center)} از ${formatNumber(cum[sh.key].total)})</span><b>${formatNumber(endPct)}٪</b></div>
+            <div class="shift-bar"><i style="width:${Math.min(100, endPct)}%"></i></div>
           </div>
         </div>
       </div>`;
@@ -5031,7 +5064,7 @@ function azkiBuildShiftsExport() {
   const shiftFmts = S.flatMap(() => ['int', 'pct']);
   const shiftCells = (b, tot) => S.flatMap(sh => [b[sh.key].center, azkiPctNum(b[sh.key].center, tot)]);
   const byDate = azkiXlsxSheet({
-    title: 'تعداد به تفکیک شیفت — به تفکیک ' + periodColName,
+    title: 'درصد صدور به تفکیک شیفت — به تفکیک ' + periodColName,
     headers: [periodColName, ...rangeHeads, ...shiftHeads, 'جمع سنتر', 'کل صدور', 'درصد صدور (٪)'],
     rows: agg.periods.map(p => { const t = shiftTotalAll(p.all), c = shiftCenterSum(p.all);
       return [p.label, ...rangeCells(p), ...shiftCells(p.all, t), c, t, azkiPctNum(c, t)]; }),
@@ -5041,18 +5074,18 @@ function azkiBuildShiftsExport() {
 
   // ۲) خلاصه‌ی کل بازه
   const summary = azkiXlsxSheet({
-    title: 'تعداد به تفکیک شیفت — خلاصه کل بازه',
-    headers: ['شیفت', 'ساعت', 'صدور ازکی سنتر', 'کل صدور شیفت', 'تأثیر روی درصد صدور (٪)', 'درصد صدور شیفت (٪)', 'سهم از صدور سنترها (٪)'],
-    rows: S.map(sh => [sh.title, sh.hours, g[sh.key].center, g[sh.key].total,
-      azkiPctNum(g[sh.key].center, totalAll), azkiPctNum(g[sh.key].center, g[sh.key].total), azkiPctNum(g[sh.key].center, centerAll)]),
-    total: ['جمع', '', centerAll, totalAll, azkiPctNum(centerAll, totalAll), azkiPctNum(centerAll, totalAll), azkiPctNum(centerAll, centerAll)],
-    widths: [16, 18, 18, 18, 26, 22, 24], fmts: ['text', 'text', 'int', 'int', 'pct', 'pct', 'pct'],
+    title: 'درصد صدور به تفکیک شیفت — خلاصه کل بازه',
+    headers: ['شیفت', 'ساعت', 'صدور ازکی سنتر', 'کل صدور شیفت', 'تأثیر روی درصد صدور (٪)', 'درصد صدور شیفت (٪)', 'درصد صدور پایان شیفت (٪)', 'سهم از صدور سنترها (٪)'],
+    rows: S.map(sh => { const cu = azkiShiftCumulative(g)[sh.key]; return [sh.title, sh.hours, g[sh.key].center, g[sh.key].total,
+      azkiPctNum(g[sh.key].center, totalAll), azkiPctNum(g[sh.key].center, g[sh.key].total), azkiPctNum(cu.center, cu.total), azkiPctNum(g[sh.key].center, centerAll)]; }),
+    total: ['جمع', '', centerAll, totalAll, azkiPctNum(centerAll, totalAll), azkiPctNum(centerAll, totalAll), azkiPctNum(centerAll, totalAll), azkiPctNum(centerAll, centerAll)],
+    widths: [16, 18, 18, 18, 26, 22, 24, 24], fmts: ['text', 'text', 'int', 'int', 'pct', 'pct', 'pct', 'pct'],
   });
 
   // ۳) هر مرکز در کل بازه
   const names = Object.keys(agg.centers).sort((a, b) => shiftCenterSum(agg.centers[b]) - shiftCenterSum(agg.centers[a]));
   const byCenter = azkiXlsxSheet({
-    title: 'تعداد به تفکیک شیفت — به تفکیک مرکز (کل بازه)',
+    title: 'درصد صدور به تفکیک شیفت — به تفکیک مرکز (کل بازه)',
     headers: ['نام مرکز', 'بامداد', 'صبح', 'شب', 'جمع', 'درصد بامداد (٪)', 'درصد صبح (٪)', 'درصد شب (٪)'],
     rows: names.map(n => { const b = agg.centers[n], sum = shiftCenterSum(b);
       return [fmtCenterName(n), b.other.center, b.morning.center, b.evening.center, sum,
@@ -5072,7 +5105,7 @@ function azkiBuildShiftsExport() {
       azkiPctNum(b.other.center, sum), azkiPctNum(b.morning.center, sum), azkiPctNum(b.evening.center, sum)]);
   }));
   const centerByDate = azkiXlsxSheet({
-    title: 'تعداد به تفکیک شیفت — مرکز به تفکیک ' + periodColName,
+    title: 'درصد صدور به تفکیک شیفت — مرکز به تفکیک ' + periodColName,
     headers: ['نام مرکز', periodColName, ...rangeHeads, 'بامداد', 'صبح', 'شب', 'جمع', 'درصد بامداد (٪)', 'درصد صبح (٪)', 'درصد شب (٪)'],
     rows: detailRows,
     total: ['جمع کل', '', ...rangeBlank, g.other.center, g.morning.center, g.evening.center, centerAll,
@@ -5082,7 +5115,7 @@ function azkiBuildShiftsExport() {
 
   return {
     sheets: [['به تفکیک ' + periodColName, byDate], ['خلاصه کل بازه', summary], ['مرکز (کل بازه)', byCenter], ['مرکز به تفکیک ' + periodColName, centerByDate]],
-    label: 'تعداد-به-تفکیک-شیفت',
+    label: 'درصد-صدور-به-تفکیک-شیفت',
   };
 }
 
@@ -6795,6 +6828,28 @@ function renderTeamPerf() {
   el.innerHTML = issuanceSplitHtml(issuanceSplitModel([...byCenter.entries()].map(([title, items]) => ({ title, items }))));
 }
 
+// تب «بررسی عملکرد» سرپرست: همون داده‌ی تب «صدور» (همون فیلتر تاریخ) ولی فقط جمع هر کارشناس به تفکیک غیرانتقالی/انتقال تخفیفی، گروه‌بندی‌شده به تفکیک سنتر
+function renderSupPerf() {
+  const el = document.getElementById('sup-perf-list'), lb = document.getElementById('sup-perf-label');
+  if (!el) return;
+  const pl = document.getElementById('supervisor-period-label');
+  if (lb && pl) lb.textContent = pl.textContent;
+  const td = window.supTargetsData;
+  if (!td || !td.items) {
+    const sl = document.getElementById('supervisor-list');
+    el.innerHTML = sl && sl.querySelector('.empty-state') ? sl.innerHTML : '<div class="loading-state">در حال بارگذاری...</div>';
+    return;
+  }
+  const byCenter = new Map();
+  td.items.filter(it => !it.m.centerDisabled).forEach(it => {
+    const c = fmtCenterName(it.m.centerName || 'بدون سنتر');
+    if (!byCenter.has(c)) byCenter.set(c, []);
+    byCenter.get(c).push({ name: it.m.full_name || it.m.backoffice_id || '—', rows: it.myRows });
+  });
+  if (!byCenter.size) { el.innerHTML = '<div class="empty-state">هنوز نیرویی به هیچ سنتری اساین نشده است</div>'; return; }
+  el.innerHTML = issuanceSplitHtml(issuanceSplitModel([...byCenter.entries()].map(([title, items]) => ({ title, items }))));
+}
+
 function buildSupervisorLeadersHtml(leaderGroups) {
   return leaderGroups.map(lg => `
     <div class="leader-item">
@@ -6941,6 +6996,7 @@ function supApplyRange() {
   errEl.textContent = '';
   supTargetsFilter.custom = true;
   document.getElementById('supervisor-list').innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
+  const spl = document.getElementById('sup-perf-list'); if (spl) spl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
   loadSupervisorView();
 }
 
@@ -7181,6 +7237,7 @@ async function loadSupervisorView() {
   setTotals(formatNumber(grandTotal), formatNumber(grandAgentCount), formatNumber(grandAgentWithTargetCount));
 
   bindExpandableToggles(container);
+  renderSupPerf();
 }
 
 function renderTeamPerformance(membersWithTotals, allTeamRows) {
@@ -10989,7 +11046,7 @@ function umLeadersModal(centerId) {
 // ============================================================
 const LEADER_TAB_DEFS = [
   ['team', 'تعداد صدور تیم'], ['team-bugs', 'خطای صدور'], ['team-perf', 'بررسی عملکرد'], ['report', 'گزارش (کل گروه)'],
-  ['azki-shifts', 'گزارش ← تعداد به تفکیک شیفت', 1],
+  ['azki-shifts', 'گزارش ← درصد صدور به تفکیک شیفت', 1],
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1],
   ['azki-oct', 'گزارش ← OCT', 1],
   ['azki-chart', 'گزارش ← نمودار', 1],
@@ -11316,8 +11373,8 @@ async function leaderTabsSettingsRender(host) {
 // ---- تب‌های سرپرست (خود سرپرست) ----
 // کلیدها همان data-sup-tab / data-sup-group دکمه‌های #supervisor-tabs و #supervisor-subtabs هستند؛ «تنظیمات» همیشه نمایش داده می‌شود
 const SUP_TAB_DEFS = [
-  ['targets', 'صدور'], ['map', 'نقشه سنتر'], ['bugs', 'خطای صدور'], ['report', 'گزارش (کل گروه)'],
-  ['azki-period', 'گزارش ← گزارش دوره‌ای', 1], ['azki-centers', 'گزارش ← به تفکیک نام مرکز', 1], ['azki-shifts', 'گزارش ← تعداد به تفکیک شیفت', 1],
+  ['targets', 'صدور'], ['map', 'نقشه سنتر'], ['sup-perf', 'بررسی عملکرد'], ['bugs', 'خطای صدور'], ['report', 'گزارش (کل گروه)'],
+  ['azki-period', 'گزارش ← گزارش دوره‌ای', 1], ['azki-centers', 'گزارش ← به تفکیک نام مرکز', 1], ['azki-shifts', 'گزارش ← درصد صدور به تفکیک شیفت', 1],
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1], ['azki-oct', 'گزارش ← OCT', 1], ['azki-chart', 'گزارش ← نمودار', 1],
   ['azki-active', 'وضعیت پنل کارشناسان'], ['azki-payroll', 'محاسبه حقوق'], ['kanban', 'تسک‌ها'],
   ['attendance', 'حضور و غیاب'], ['training', 'آموزش'], ['users', 'مدیریت کاربران'], ['run-history', 'تاریخچه گزارش']
