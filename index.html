@@ -1399,7 +1399,7 @@
   .azki-stat .k { font-size: 12.5px; font-weight: 500; color: var(--ink-soft); white-space: nowrap; }
   .azki-stat .v { font-size: 23px; font-weight: 800; line-height: 1.2; color: var(--ink); font-variant-numeric: tabular-nums; }
   .azki-stat.pct .v { color: var(--accent-deep); }
-  .shift-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 14px; margin-bottom: 16px; }
+  .shift-cards { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; margin-bottom: 20px; }
   .shift-card {
     background: var(--surface);
     -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(180%);
@@ -1407,25 +1407,29 @@
     border: 1px solid var(--line);
     border-radius: var(--radius-lg);
     box-shadow: var(--shadow-card);
-    padding: 18px 20px;
-    display: flex; flex-direction: column; gap: 12px;
+    padding: 24px 26px;
+    display: flex; flex-direction: column; gap: 18px;
   }
   .shift-card-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-  .shift-card-title { font-size: 15px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
-  .shift-card-title svg { width: 18px; height: 18px; color: var(--accent-deep); }
-  .shift-card-hours { font-size: 12px; font-weight: 600; color: var(--ink-soft); background: var(--surface-tint); padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
-  .shift-card-count { font-size: 32px; font-weight: 800; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
-  .shift-card-count small { font-size: 13px; font-weight: 600; color: var(--ink-soft); margin-inline-start: 6px; }
-  .shift-card-metrics { display: flex; flex-direction: column; gap: 8px; }
-  .shift-metric { display: flex; flex-direction: column; gap: 5px; }
-  .shift-metric-row { display: flex; justify-content: space-between; gap: 8px; font-size: 12.5px; color: var(--ink-soft); }
-  .shift-metric-row b { color: var(--accent-deep); font-size: 14px; font-variant-numeric: tabular-nums; }
-  .shift-bar { height: 6px; border-radius: 999px; background: var(--surface-tint); overflow: hidden; }
+  .shift-card-title { font-size: 18px; font-weight: 800; color: var(--ink); display: flex; align-items: center; gap: 8px; }
+  .shift-card-title svg { width: 22px; height: 22px; color: var(--accent-deep); }
+  .shift-card-hours { font-size: 13px; font-weight: 600; color: var(--ink-soft); background: var(--surface-tint); padding: 4px 12px; border-radius: 999px; white-space: nowrap; }
+  .shift-card-count { font-size: 44px; font-weight: 800; color: var(--ink); line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .shift-card-count small { font-size: 15px; font-weight: 600; color: var(--ink-soft); margin-inline-start: 6px; }
+  .shift-card-metrics { display: flex; flex-direction: column; gap: 16px; }
+  .shift-metric { display: flex; flex-direction: column; gap: 8px; }
+  .shift-metric-row { display: flex; justify-content: space-between; gap: 10px; font-size: 14px; line-height: 1.7; color: var(--ink-soft); }
+  .shift-metric-row b { color: var(--accent-deep); font-size: 18px; font-variant-numeric: tabular-nums; }
+  .shift-bar { height: 9px; border-radius: 999px; background: var(--surface-tint); overflow: hidden; }
   .shift-bar > i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--accent-deep), var(--accent)); }
   .shift-note { font-size: 12.5px; color: var(--ink-soft); padding: 12px 20px; }
-  .shift-summary { grid-column: 1 / -1; font-size: 13px; color: var(--ink-soft); background: var(--surface-tint); padding: 10px 14px; border-radius: var(--radius); }
-  .shift-summary b { color: var(--accent-deep); font-size: 15px; font-variant-numeric: tabular-nums; }
+  .shift-summary { grid-column: 1 / -1; font-size: 14.5px; color: var(--ink-soft); background: var(--surface-tint); padding: 14px 18px; border-radius: var(--radius); }
+  .shift-summary b { color: var(--accent-deep); font-size: 18px; font-variant-numeric: tabular-nums; }
   .shift-mode { margin-bottom: 12px; }
+  .shift-stale { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 16px; border-radius: var(--radius); background: var(--amber-soft); border-inline-start: 4px solid var(--amber); font-size: 13px; line-height: 1.9; color: var(--ink); }
+  .shift-stale b { font-variant-numeric: tabular-nums; }
+  .shift-stale button { font: inherit; font-size: 12.5px; font-weight: 700; padding: 7px 14px; border-radius: 999px; border: 1px solid var(--amber); background: transparent; color: var(--ink); cursor: pointer; white-space: nowrap; }
+  .shift-stale button:hover { background: var(--amber); color: #fff; }
   .shift-split { display: flex; height: 8px; border-radius: 999px; overflow: hidden; background: var(--surface-tint); min-width: 90px; }
   .shift-split .m { background: var(--accent-deep); }
   .shift-split .e { background: var(--accent); }
@@ -1433,7 +1437,8 @@
   .shift-center-row .row-main { display: flex; flex-direction: column; gap: 6px; }
   .shift-center-row .row-sub { font-size: 12.5px; color: var(--ink-soft); font-weight: 500; }
   .shift-center-row .row-date { font-weight: 800; color: var(--ink); min-width: 140px; }
-  @media (max-width: 640px) { .shift-card-count { font-size: 26px; } .shift-center-row { flex-wrap: wrap; } }
+  @media (max-width: 820px) { .shift-cards { grid-template-columns: 1fr; } }
+  @media (max-width: 640px) { .shift-card-count { font-size: 34px; } .shift-center-row { flex-wrap: wrap; } }
   @media (max-width: 640px) { .azki-stats { gap: 16px; } .azki-stat { gap: 7px; } .azki-stat .k { font-size: 11px; } .azki-stat .v { font-size: 19px; } }
   .azki-error { color: #c0392b; font-size: 12.5px; min-height: 16px; margin-top: 6px; }
   .sm-meta { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; font-size: 12.5px; color: var(--ink-soft); margin-bottom: 10px; }
@@ -1731,16 +1736,14 @@
   .ticket-hero-card .value, .team-details-inner .ticket-hero-card .value { font-size: 18px; }
   .ticket-report-cell .v { font-size: 15px; }
   .azki-stat .v { font-size: var(--fs-stat-value); }
-  .shift-card-count { font-size: 22px; }
   .sm-sum b { font-size: 17px; }
   .pay-metric .v { font-size: 14px; }
-  .azki-trend-title, .shift-card-title, .leader-name { font-size: var(--fs-title); }
+  .azki-trend-title, .leader-name { font-size: var(--fs-title); }
   @media (max-width: 640px) {
     .summary-card .label, .ticket-primary-card .label { font-size: 12px; }
     .summary-card .value, .ticket-primary-card .value { font-size: 18px; }
     .summary-card .value.is-text { font-size: 14px; }
     .azki-stat .v, .azki-trend-title { font-size: 15px; }
-    .shift-card-count { font-size: 20px; }
   }
 </style>
 <style id="um-styles">
@@ -2112,6 +2115,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       </button>
     </div>
     <div class="subtabs" id="team-subtabs" style="display:none;">
+      <button class="subtab-btn" data-team-tab="azki-shifts" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+        تعداد به تفکیک شیفت
+      </button>
       <button class="subtab-btn" data-team-tab="azki-compare" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="12" r="5"/><circle cx="16" cy="12" r="5"/></svg>
         مقایسه درصد صدور
@@ -2607,6 +2614,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
       <div id="sup-view-azki-shifts" style="display:none;">
         <div class="period-label" id="azki-shifts-label"></div>
+        <div id="azki-shifts-fresh"></div>
         <div class="shift-cards" id="azki-shifts-cards"></div>
         <div class="sm-stabs shift-mode" id="azki-shifts-mode">
           <button type="button" class="sm-stab active" data-shift-mode="date">بر اساس تاریخ</button>
@@ -2833,7 +2841,7 @@ document.querySelectorAll('#main-tabs .tab-btn').forEach(btn => {
 });
 
 window.teamCurrentTab = 'team';
-const TEAM_REPORT_TABS = ['azki-compare', 'azki-oct', 'azki-chart'];
+const TEAM_REPORT_TABS = ['azki-shifts', 'azki-compare', 'azki-oct', 'azki-chart'];
 let teamLastReportTab = 'azki-compare';
 window.leaderHiddenTabs = new Set(); // تب‌هایی که سرپرست برای سرگروه‌ها مخفی کرده
 function teamShowTab(tab) {
@@ -4099,24 +4107,65 @@ function azkiShiftSplitBar(b) {
   </div>`;
 }
 
+// آخرین روزی که برای شیفت‌ها دیتا نوشته شده (مستقل از بازه و شرکت)؛ برای اینکه خالی بودن تب گنگ نباشه
+async function fetchAzkiShiftLatest() {
+  try {
+    const { data, error } = await supabaseClient
+      .from(TABLE_AZKI_SHIFT)
+      .select('report_date, report_date_jalali')
+      .order('report_date', { ascending: false })
+      .limit(1);
+    if (error || !data || !data.length) return null;
+    return data[0];
+  } catch (_) { return null; }
+}
+
 async function loadAzkiShiftsView() {
   if (!azkiAllowed()) return;
   const bounds = getAzkiBounds();
   document.getElementById('azki-shifts-label').textContent = azkiRangeText(bounds);
 
-  const { data, error } = await fetchAzkiShiftRows(azkiActiveScopes(), bounds);
+  const [{ data, error }, latest] = await Promise.all([
+    fetchAzkiShiftRows(azkiActiveScopes(), bounds),
+    fetchAzkiShiftLatest(),
+  ]);
   if (bounds !== azkiState.bounds) return;
   if (error) {
+    document.getElementById('azki-shifts-fresh').innerHTML = '';
     document.getElementById('azki-shifts-cards').innerHTML = '';
     document.getElementById('azki-shifts-list').innerHTML = `<div class="empty-state">خطا در دریافت گزارش: ${azkiShiftEsc(error.message)}</div>`;
     return;
   }
   azkiState.shifts.rows = data || [];
+  azkiState.shifts.latest = latest;
   azkiState.shifts.loaded = true;
   renderAzkiShiftsView();
 }
 
+// اگه آخر بازه‌ی انتخابی از آخرین دیتای ثبت‌شده جلوتره، بنر هشدار + دکمه‌ی رفتن به آخرین روز دارای دیتا
+function renderAzkiShiftsFresh() {
+  const el = document.getElementById('azki-shifts-fresh');
+  if (!el) return;
+  const latest = azkiState.shifts.latest;
+  const bounds = azkiState.bounds;
+  if (!latest || !bounds || latest.report_date >= bounds.endDate) { el.innerHTML = ''; return; }
+  const lbl = faDigits(latest.report_date_jalali);
+  const empty = !azkiState.shifts.rows.length;
+  el.innerHTML = `<div class="shift-stale">
+    <div>${empty ? 'برای این بازه دیتایی در گزارش شیفت‌ها نیست. ' : ''}دیتای شیفت‌ها فقط تا <b>${lbl}</b> ثبت شده و بعد از آن به‌روزرسانی نشده؛ پس اعداد روزهای بعد از این تاریخ خالی یا ناقص نمایش داده می‌شن.</div>
+    <button type="button" id="azki-shifts-goto-latest">نمایش ${lbl}</button>
+  </div>`;
+  const btn = document.getElementById('azki-shifts-goto-latest');
+  if (btn) btn.onclick = () => {
+    const { jy, jm, jd } = parseJalaliParts(latest.report_date_jalali);
+    azkiSetDate('from', [jy, jm, jd]);
+    azkiSetDate('to', [jy, jm, jd]);
+    azkiApplyRange();
+  };
+}
+
 function renderAzkiShiftsView() {
+  renderAzkiShiftsFresh();
   const rows = azkiState.shifts.rows;
   const cardsEl = document.getElementById('azki-shifts-cards');
   const container = document.getElementById('azki-shifts-list');
@@ -10745,6 +10794,7 @@ function umLeadersModal(centerId) {
 // ============================================================
 const LEADER_TAB_DEFS = [
   ['team', 'تعداد صدور تیم'], ['team-bugs', 'خطای صدور'], ['report', 'گزارش (کل گروه)'],
+  ['azki-shifts', 'گزارش ← تعداد به تفکیک شیفت', 1],
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1],
   ['azki-oct', 'گزارش ← OCT', 1],
   ['azki-chart', 'گزارش ← نمودار', 1],
