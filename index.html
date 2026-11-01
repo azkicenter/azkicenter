@@ -1679,6 +1679,11 @@
   .center-perf-table td.is-total, .center-perf-table th.is-total { font-weight: 800; color: var(--accent-deep); }
   .center-perf-table tfoot td { font-weight: 800; background: var(--accent-soft); border-bottom: 0; }
   .center-perf-table tfoot td:first-child { background: var(--accent-soft); }
+  .cp-split-title { font-weight: 800; margin-bottom: 12px; }
+  .cp-split-title small { font-weight: 500; color: var(--ink-soft); }
+  .center-perf-table tr.cp-group td { background: var(--surface-tint); font-weight: 800; color: var(--accent-deep); }
+  .cp-note { font-size: 12.5px; color: var(--ink-soft); margin-top: 12px; line-height: 1.9; }
+  .cp-split-wrap .summary-row { margin-bottom: 14px; }
   .center-perf-share { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(0, 3fr) auto; align-items: center; gap: 14px; }
   .center-perf-bar { height: 8px; border-radius: 999px; background: var(--accent-soft); overflow: hidden; }
   .center-perf-bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-deep)); }
@@ -2084,6 +2089,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8a4 4 0 0 1 4 4v4a4 4 0 0 1-8 0v-4a4 4 0 0 1 4-4Z"/><path d="M8 12H4M20 12h-4M12 8V4M9 4l1.5 2M15 4l-1.5 2M6 6l2 2M18 6l-2 2M6 18l2-2M18 18l-2-2"/></svg>
         خطای صدور
       </button>
+      <button class="tab-btn" data-team-tab="team-perf" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+        بررسی عملکرد
+      </button>
       <button class="tab-btn" data-team-group="report" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5"/><path d="M9 13h6M9 17h4"/></svg>
         گزارش
@@ -2187,6 +2196,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       <div id="disc-team-list" class="disc-host"></div>
     </div>
 
+    <div class="panel" id="panel-team-perf">
+      <div class="period-label" id="team-perf-label"></div>
+      <div class="list-card cp-split-wrap" id="team-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
+    </div>
     <div class="panel" id="panel-kanban"></div>
     <div class="panel" id="panel-attendance"></div>
     <div class="panel" id="panel-users"></div>
@@ -2311,6 +2324,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
           <div class="label">بیشترین صدور</div>
           <div class="value" id="center-perf-top" style="font-size:20px;">—</div>
         </div>
+      </div>
+
+      <div class="list-card cp-split-wrap" id="center-perf-split" style="margin-bottom:14px;">
+        <div class="loading-state">در حال بارگذاری...</div>
       </div>
 
       <div class="sm-stabs" id="center-perf-gran" style="margin-bottom:12px;">
@@ -2860,13 +2877,22 @@ function teamShowTab(tab) {
     subBar.querySelectorAll('.subtab-btn').forEach(b => b.classList.toggle('active', b.dataset.teamTab === tab));
   }
   document.getElementById('panel-team').classList.remove('active');
-  document.getElementById('panel-team-bugs').classList.remove('active');
+  document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
   ['panel-azki-compare', 'panel-azki-oct', 'panel-azki-chart', 'panel-azki-shifts', 'panel-azki-active', 'panel-azki-payroll', 'panel-kanban', 'panel-attendance', 'panel-users', 'panel-team-training'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
   const panelEl = document.getElementById(tab === 'training' ? 'panel-team-training' : 'panel-' + tab);
   panelEl.classList.add('active');
+  // فیلتر تاریخ «تعداد صدور تیم» برای تب «بررسی عملکرد» هم استفاده می‌شه؛ همون المنت بین دو پنل جابه‌جا می‌شه
+  const teamFilterEl = document.getElementById('team-filter');
+  if (teamFilterEl) {
+    const dest = document.getElementById(tab === 'team-perf' ? 'panel-team-perf' : 'panel-team');
+    if (dest && teamFilterEl.parentNode !== dest) dest.insertBefore(teamFilterEl, dest.firstChild);
+    const exBtn = document.getElementById('team-export-btn');
+    if (exBtn) exBtn.style.display = tab === 'team-perf' ? 'none' : '';
+  }
+  if (tab === 'team-perf') renderTeamPerf();
   const azkiFilterEl = document.getElementById('azki-filter');
   // وضعیت پنل کارشناسان بازه‌ی تاریخی نداره، پس فیلتر تاریخ/شرکت براش نشون داده نمیشه
   const isAzki = tab.startsWith('azki-') && tab !== 'azki-active';
@@ -6051,7 +6077,7 @@ async function enterApp(user) {
     document.getElementById('panel-bugs').classList.remove('active');
     document.getElementById('team-tabs').style.display = 'none';
     document.getElementById('panel-team').classList.remove('active');
-    document.getElementById('panel-team-bugs').classList.remove('active');
+    document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
     document.getElementById('center-tabs').style.display = 'none';
     document.getElementById('panel-center').classList.remove('active');
     document.getElementById('panel-center-bugs').classList.remove('active');
@@ -6065,7 +6091,7 @@ async function enterApp(user) {
     document.getElementById('panel-bugs').classList.remove('active');
     document.getElementById('team-tabs').style.display = 'none';
     document.getElementById('panel-team').classList.remove('active');
-    document.getElementById('panel-team-bugs').classList.remove('active');
+    document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
     document.getElementById('center-tabs').style.display = 'flex';
     document.getElementById('panel-center').classList.add('active');
     document.getElementById('center-filter').style.display = '';
@@ -6082,7 +6108,7 @@ async function enterApp(user) {
     document.getElementById('team-tabs').style.display = 'flex';
     document.querySelector('main').classList.add('wide-nav');
     document.getElementById('panel-team').classList.add('active');
-    document.getElementById('panel-team-bugs').classList.remove('active');
+    document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
     document.getElementById('center-tabs').style.display = 'none';
     document.getElementById('panel-center').classList.remove('active');
     document.getElementById('panel-center-bugs').classList.remove('active');
@@ -6108,7 +6134,7 @@ async function enterApp(user) {
     document.getElementById('panel-bugs').classList.remove('active');
     document.getElementById('team-tabs').style.display = 'none';
     document.getElementById('panel-team').classList.remove('active');
-    document.getElementById('panel-team-bugs').classList.remove('active');
+    document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
     document.getElementById('center-tabs').style.display = 'none';
     document.getElementById('panel-center').classList.remove('active');
     document.getElementById('panel-center-bugs').classList.remove('active');
@@ -6501,6 +6527,8 @@ async function loadTeamView(leaderId) {
   const container = document.getElementById('team-list');
   window.teamLeaderId = leaderId;
   const token = ++teamLoadToken;
+  const perfEl = document.getElementById('team-perf-list');
+  if (perfEl) perfEl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
   document.getElementById('team-with-target-count').textContent = '—';
   const period = teamTargetsPeriod();
   document.getElementById('team-period-label').textContent = faDigits(`${teamTargetsFilter.custom ? 'بازه‌ی نمایش' : 'بازه‌ی جاری'}: ${period.startLabel} تا ${period.endLabel}`);
@@ -6677,6 +6705,7 @@ async function loadTeamView(leaderId) {
   const memberBlocks = buildGroupedMemberItemsHtml(membersWithTotals);
 
   container.innerHTML = memberBlocks || '<div class="empty-state">هنوز نیرویی به شما اساین نشده است</div>';
+  renderTeamPerf();
   document.getElementById('team-period-total').textContent = formatNumber(teamTotal);
   document.getElementById('team-with-target-count').textContent = formatNumber(membersWithTotals.filter(x => x.myRows.length > 0).length);
 
@@ -6692,6 +6721,28 @@ async function loadTeamView(leaderId) {
   renderTeamBugsList(teamBugsFlat);
 
   bindExpandableToggles(container);
+}
+
+// تب «بررسی عملکرد» سرگروه: همون داده‌ی تب «تعداد صدور تیم» (همون فیلتر تاریخ) ولی فقط جمع هر کارشناس، گروه‌بندی‌شده به تفکیک سنتر
+function renderTeamPerf() {
+  const el = document.getElementById('team-perf-list'), lb = document.getElementById('team-perf-label');
+  if (!el) return;
+  const pl = document.getElementById('team-period-label');
+  if (lb && pl) lb.textContent = pl.textContent;
+  const td = window.teamTargetsData;
+  if (!td || !td.items) {
+    const tl = document.getElementById('team-list');
+    el.innerHTML = tl && tl.querySelector('.empty-state') ? tl.innerHTML : '<div class="loading-state">در حال بارگذاری...</div>';
+    return;
+  }
+  const byCenter = new Map();
+  td.items.forEach(it => {
+    const c = fmtCenterName(it.m.centerName || 'بدون سنتر');
+    if (!byCenter.has(c)) byCenter.set(c, []);
+    byCenter.get(c).push({ name: it.m.full_name || it.m.backoffice_id || '—', rows: it.myRows });
+  });
+  if (!byCenter.size) { el.innerHTML = '<div class="empty-state">هنوز نیرویی به شما اساین نشده است</div>'; return; }
+  el.innerHTML = issuanceSplitHtml(issuanceSplitModel([...byCenter.entries()].map(([title, items]) => ({ title, items }))));
 }
 
 function buildSupervisorLeadersHtml(leaderGroups) {
@@ -7334,6 +7385,7 @@ function centerAgentDisplayName(m) { return m.full_name || m.backoffice_id || '�
 function renderCenterTargets() {
   const listEl = document.getElementById('center-list');
   if (!listEl) return;
+  renderCenterPerfSplit();
   const rowsByUser = {};
   centerTargetRowsAll.forEach(r => { (rowsByUser[r.agent_id] = rowsByUser[r.agent_id] || []).push(r); });
 
@@ -7410,6 +7462,8 @@ async function loadCenterData() {
   const loading = '<div class="loading-state">در حال بارگذاری...</div>';
   listEl.innerHTML = loading;
   bugsListEl.innerHTML = loading;
+  const splitEl = document.getElementById('center-perf-split');
+  if (splitEl) splitEl.innerHTML = loading;
 
   const [targetsRes, bugsRes] = await Promise.all([
     fetchAllRows((from, toIdx) =>
@@ -7885,7 +7939,73 @@ document.getElementById('center-payroll-export').addEventListener('click', expor
 // منبع: azki_center_breakdown_report (همون گزارشی که محاسبه حقوق ازش خونده می‌شه)؛ ردیف‌های scope هر شرکت
 // + scope «کل». اختلاف «کل» با جمع شرکت‌ها (اگه شرکتی تو لیست فیلتر نباشه) به‌صورت ستون «سایر» میاد.
 // ============================================================
-const centerPerfState = { loaded: false, seq: 0, gran: 'daily', rows: [], agentRows: null, agentErr: '', bounds: null, name: '', model: null, agentModel: null };
+const centerPerfState = { loaded: false, seq: 0, gran: 'daily', rows: [], agentRows: null, agentErr: '', bounds: null, name: '', model: null, agentModel: null, split: null };
+
+// ============================================================
+// تقسیم صدور هر کارشناس به «غیرانتقالی» و «انتقال تخفیفی» (فقط تعداد کل بازه)
+// منبع: daily_targets.target_count (صدور کل) و daily_targets.discount_transfer_count (سفارش‌های «انتقال تخفیفی = بله»، از ورک‌فلوی n8n).
+// غیرانتقالی = کل − انتقال تخفیفی؛ یعنی جمع دو ستون همیشه برابر صدور کل کارشناسه.
+// روزهایی که n8n هنوز مقدار انتقال تخفیفی‌شون رو ننوشته (null) جدا به‌صورت «نامشخص» شمرده می‌شن تا عدد غلط نشون داده نشه.
+// ============================================================
+function issuanceSplitOf(rows) {
+  let total = 0, transfer = 0, unknown = 0;
+  (rows || []).forEach(r => {
+    const n = Number(r.target_count) || 0;
+    total += n;
+    if (r.discount_transfer_count == null) unknown += n;
+    else transfer += Math.min(n, Math.max(0, Number(r.discount_transfer_count) || 0));
+  });
+  return { total, transfer, unknown, normal: total - transfer - unknown };
+}
+
+// groups: [{ title|null, items: [{ name, rows }] }]  →  { groups: [{ title, list, gs }], sum }
+function issuanceSplitModel(groups) {
+  const sum = { total: 0, normal: 0, transfer: 0, unknown: 0 };
+  const add = (s, x) => { s.total += x.total; s.normal += x.normal; s.transfer += x.transfer; s.unknown += x.unknown; return s; };
+  const prepared = groups.map(g => {
+    const list = g.items.map(it => ({ name: it.name, ...issuanceSplitOf(it.rows) }))
+      .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'fa'));
+    const gs = list.reduce(add, { total: 0, normal: 0, transfer: 0, unknown: 0 });
+    add(sum, gs);
+    return { title: g.title, list, gs };
+  }).sort((a, b) => b.gs.total - a.gs.total);
+  return { groups: prepared, sum };
+}
+
+function issuanceSplitHtml(model) {
+  const { groups, sum } = model;
+  const hasUnknown = sum.unknown > 0;
+  const cell = v => `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`;
+  const cells = x => `${cell(x.normal)}${cell(x.transfer)}${hasUnknown ? cell(x.unknown) : ''}<td class="is-total">${formatNumber(x.total)}</td>`;
+  const body = groups.map(g =>
+    (g.title != null ? `<tr class="cp-group"><td>${escHtml(g.title)} <small>(${formatNumber(g.list.length)} نفر)</small></td>${cells(g.gs)}</tr>` : '')
+    + g.list.map(x => `<tr><td>${escHtml(x.name)}</td>${cells(x)}</tr>`).join('')
+  ).join('');
+  const card = (label, v) => `<div class="summary-card"><div class="label">${label}</div><div class="value">${formatNumber(v)}</div></div>`;
+  return `
+    <div class="cp-split-title">تعداد صدور کارشناس‌ها: غیرانتقالی و انتقال تخفیفی <small>(کل بازه‌ی انتخابی)</small></div>
+    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقال تخفیفی', sum.transfer)}</div>
+    <div class="center-perf-scroll">
+      <table class="center-perf-table">
+        <thead><tr><th>کارشناس</th><th>غیرانتقالی</th><th>انتقال تخفیفی</th>${hasUnknown ? '<th>نامشخص</th>' : ''}<th class="is-total">صدور کل</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td>جمع کل</td><td>${formatNumber(sum.normal)}</td><td>${formatNumber(sum.transfer)}</td>${hasUnknown ? `<td>${formatNumber(sum.unknown)}</td>` : ''}<td>${formatNumber(sum.total)}</td></tr></tfoot>
+      </table>
+    </div>
+    ${hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقال تخفیفی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل بماند.</div>` : ''}`;
+}
+
+function renderCenterPerfSplit() {
+  const el = document.getElementById('center-perf-split');
+  if (!el) return;
+  const rowsByUser = {};
+  centerTargetRowsAll.forEach(r => { (rowsByUser[r.agent_id] = rowsByUser[r.agent_id] || []).push(r); });
+  const agents = centerNormalAgentsAll.filter(m => m.status !== 'disabled' || (rowsByUser[m.id] || []).length > 0);
+  if (!agents.length) { centerPerfState.split = null; el.innerHTML = '<div class="empty-state">هنوز نیرویی به شما اساین نشده است</div>'; return; }
+  const model = issuanceSplitModel([{ title: null, items: agents.map(m => ({ name: centerAgentDisplayName(m), rows: rowsByUser[m.id] || [] })) }]);
+  centerPerfState.split = model;
+  el.innerHTML = issuanceSplitHtml(model);
+}
 const TABLE_AZKI_AGENT_COMPANY = 'azki_center_agent_company'; // صدور هر کارشناس به تفکیک شرکت بیمه (از ورک‌فلوی n8n)
 
 async function fetchCenterAgentCompanyRows(bounds) {
@@ -8002,6 +8122,7 @@ function renderCenterPerf() {
   const st = centerPerfState;
   const shareEl = document.getElementById('center-perf-share');
   const tableEl = document.getElementById('center-perf-table');
+  renderCenterPerfSplit();
   if (!st.loaded) return;
   const m = buildCenterPerfModel(st.rows, st.gran);
   st.model = m;
@@ -8094,6 +8215,18 @@ async function exportCenterPerfExcel() {
         widths: h2.map((h, i) => i === 0 ? 24 : 14), fmts: h2.map((h, i) => i === 0 ? 'text' : 'int'),
       });
       sheets.push(['به تفکیک کارشناس', ws2]);
+    }
+    const sp = st.split;
+    if (sp && sp.groups.length && sp.groups[0].list.length) {
+      const hasU = sp.sum.unknown > 0, S = sp.sum;
+      const h3 = ['کارشناس', 'غیرانتقالی', 'انتقال تخفیفی', ...(hasU ? ['نامشخص'] : []), 'صدور کل'];
+      sheets.push(['انتقالی و غیرانتقالی', azkiXlsxSheet({
+        title: 'بررسی عملکرد — صدور کارشناس‌ها: غیرانتقالی / انتقال تخفیفی', bounds: st.bounds,
+        metaLine2: `سنتر: ${st.name || ''}   |   کل بازه`,
+        headers: h3, rows: sp.groups[0].list.map(x => [x.name, x.normal, x.transfer, ...(hasU ? [x.unknown] : []), x.total]),
+        total: ['جمع کل', S.normal, S.transfer, ...(hasU ? [S.unknown] : []), S.total],
+        widths: h3.map((h, i) => i === 0 ? 24 : 14), fmts: h3.map((h, i) => i === 0 ? 'text' : 'int'),
+      })]);
     }
     azkiXlsxSave(sheets, 'بررسی-عملکرد', st.bounds);
   } catch (e) {
@@ -10793,7 +10926,7 @@ function umLeadersModal(centerId) {
 // کلیدها همان data-team-tab تب‌های پنل سرگروه هستند؛ «report» یعنی کل گروه گزارش
 // ============================================================
 const LEADER_TAB_DEFS = [
-  ['team', 'تعداد صدور تیم'], ['team-bugs', 'خطای صدور'], ['report', 'گزارش (کل گروه)'],
+  ['team', 'تعداد صدور تیم'], ['team-bugs', 'خطای صدور'], ['team-perf', 'بررسی عملکرد'], ['report', 'گزارش (کل گروه)'],
   ['azki-shifts', 'گزارش ← تعداد به تفکیک شیفت', 1],
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1],
   ['azki-oct', 'گزارش ← OCT', 1],
@@ -10820,7 +10953,7 @@ function applyLeaderHiddenTabs(hiddenList) {
     const first = tabBtns.find(b => b.style.display !== 'none');
     if (first) teamShowTab(first.dataset.teamGroup === 'report' ? teamLastReportTab : first.dataset.teamTab);
     else {
-      ['panel-team', 'panel-team-bugs'].forEach(id => document.getElementById(id).classList.remove('active'));
+      ['panel-team', 'panel-team-bugs', 'panel-team-perf'].forEach(id => document.getElementById(id).classList.remove('active'));
     }
   }
 }
