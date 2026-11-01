@@ -2851,6 +2851,7 @@ function teamShowTab(tab) {
   if (window.leaderHiddenTabs.has(tab)) return;
   window.teamCurrentTab = tab;
   const isReport = TEAM_REPORT_TABS.includes(tab);
+  if (window.setLastUpdateMode) window.setLastUpdateMode(isReport);
   if (isReport) teamLastReportTab = tab;
   document.querySelectorAll('#team-tabs .tab-btn').forEach(b => {
     const key = b.dataset.teamGroup || b.dataset.teamTab;
@@ -3287,6 +3288,7 @@ document.querySelectorAll('#center-tabs .tab-btn').forEach(btn => {
     if (window.supHiddenTabs.has(which)) return;
     window.supCurrentTab = which;
     const isReport = SUP_REPORT_TABS.includes(which);
+    if (window.setLastUpdateMode) window.setLastUpdateMode(isReport);
     if (isReport) supLastReportTab = which;
     document.querySelectorAll('#supervisor-tabs .tab-btn').forEach(b => {
       const key = b.dataset.supGroup || b.dataset.supTab;
@@ -5931,26 +5933,50 @@ function initAzkiFilter() {
 }
 initAzkiFilter();
 
-async function loadLastUpdate() {
+// آخرین آپدیت: روی تب‌های عادی «آخرین آپدیت تارگت‌ها» و روی تب‌های گروه «گزارش» «آخرین آپدیت گزارش‌ها»
+window.__lastUpdateData = { targets: null, reports: null };
+window.__lastUpdateMode = 'targets';
+function renderLastUpdateBar() {
   const bar = document.getElementById('last-update-bar');
-  const { data, error } = await supabaseClient
-    .from(TABLE_META)
-    .select('updated_label')
-    .eq('id', 1)
-    .single();
-
-  if (error || !data || !data.updated_label) {
-    if (error) console.error('خطا در دریافت آخرین آپدیت:', error.message, error);
-    bar.style.display = 'none';
-    return;
-  }
+  if (!bar) return;
+  const d = window.__lastUpdateData || {};
+  const label = window.__lastUpdateMode === 'reports' ? d.reports : d.targets;
+  if (!label) { bar.style.display = 'none'; return; }
   bar.innerHTML = `
     <span class="last-update-card">
       <span class="last-update-dot"></span>
-      <span>${escHtml(data.updated_label)}</span>
+      <span>${escHtml(label)}</span>
     </span>
   `;
   bar.style.display = 'flex';
+}
+window.setLastUpdateMode = function (isReport) {
+  const mode = isReport ? 'reports' : 'targets';
+  if (window.__lastUpdateMode === mode) return;
+  window.__lastUpdateMode = mode;
+  renderLastUpdateBar();
+};
+
+async function loadLastUpdate() {
+  let { data, error } = await supabaseClient
+    .from(TABLE_META)
+    .select('updated_label, reports_updated_label')
+    .eq('id', 1)
+    .single();
+
+  if (error) {
+    // اگه ستون reports_updated_label هنوز ساخته نشده، حداقل آپدیت تارگت‌ها نمایش داده بشه
+    const fb = await supabaseClient.from(TABLE_META).select('updated_label').eq('id', 1).single();
+    data = fb.data;
+    error = fb.error;
+  }
+  if (error) console.error('خطا در دریافت آخرین آپدیت:', error.message, error);
+
+  window.__lastUpdateData = {
+    targets: (data && data.updated_label) || null,
+    reports: (data && data.reports_updated_label) || null
+  };
+  renderLastUpdateBar();
 }
 
 async function enterApp(user) {
@@ -5958,6 +5984,7 @@ async function enterApp(user) {
   document.getElementById('user-label').textContent = '';
 
   currentUserId = user.id;
+  window.__lastUpdateMode = 'targets';
   loadLastUpdate();
   if (!window.__lastUpdateTimer) window.__lastUpdateTimer = setInterval(() => { if (document.visibilityState === 'visible') loadLastUpdate(); }, 2 * 60000);
 
