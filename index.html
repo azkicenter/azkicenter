@@ -170,7 +170,6 @@
       radial-gradient(700px 560px at 88% 102%, rgba(255,105,170,.32), transparent 62%),
       radial-gradient(640px 520px at 4% 104%, rgba(31,169,113,.3), transparent 62%),
       linear-gradient(160deg, #CDE8FF 0%, #EAF4FE 45%, #FFFFFF 100%);
-    background-attachment: fixed;
   }
   html[data-theme="dark"] .bg-glow {
     background:
@@ -179,7 +178,6 @@
       radial-gradient(700px 560px at 88% 102%, rgba(156,135,240,.26), transparent 60%),
       radial-gradient(640px 520px at 4% 104%, rgba(52,201,140,.2), transparent 60%),
       linear-gradient(135deg, #05070f 0%, #060a16 55%, #04070d 100%);
-    background-attachment: fixed;
   }
   @keyframes glow-shift {
     0%, 100% { filter: saturate(1) hue-rotate(0deg); }
@@ -12425,6 +12423,22 @@ html.nav-open #nav-overlay{ transition:opacity .4s ease, visibility 0s linear 0s
 /* کل ردیف هدر (لوگو، آخرین آپدیت، دکمه‌ی منو، اسم و خروج) ~۴ پیکسل پایین‌تر؛ ارتفاع هدر ثابت می‌ماند */
 header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 @media (max-width:640px){ header.topbar{ padding-top:9px !important; padding-bottom:1px !important; } }
+</style>
+<style id="perf-overrides-2">
+/* ===== سبک‌سازی اسکرول (فقط عملکرد؛ ظاهر تقریباً همان است) ===== */
+/* ۱) بلور فقط برای هدر، منوی کشویی و پنجره‌های مودال؛ هر چیز کوچک دیگر (بج، چیپ، دکمه، سلول جدول، کارت‌ها) بدون backdrop-filter */
+*:not(.topbar-wrap):not(#nav-drawer):not(.um-modal):not(.um-box):not(.login-card):not(.kb-m):not(.att-m):not(#nav-overlay){
+  -webkit-backdrop-filter:none!important;backdrop-filter:none!important}
+/* ۲) هدر وقتی اسکرول شده بلور سبک‌تری دارد (بلور بزرگ روی محتوای در حال حرکت گران است) */
+.topbar-wrap.is-scrolled{-webkit-backdrop-filter:blur(10px) saturate(150%)!important;backdrop-filter:blur(10px) saturate(150%)!important}
+@media (max-width:640px){.topbar-wrap,.topbar-wrap.is-scrolled{-webkit-backdrop-filter:blur(6px)!important;backdrop-filter:blur(6px)!important}}
+/* ۳) لایه‌ی پس‌زمینه‌ی ثابت روی GPU جدا؛ با اسکرول دوباره رنگ نمی‌شود */
+.bg-glow{transform:translateZ(0);will-change:transform;backface-visibility:hidden}
+/* ۴) ردیف‌های لیست‌های بلند فقط وقتی نزدیک صفحه‌اند رندر می‌شوند */
+.team-item,.bug-item,.row-item,.um-row,.leader-item{content-visibility:auto;contain-intrinsic-size:auto 76px}
+.rh-tbl tbody tr{content-visibility:auto;contain-intrinsic-size:auto 38px}
+/* ۵) سایه‌های سنگین کارت‌ها هنگام اسکرول فعال تغییر نکنند */
+.list-card,.team-item,.leader-item,.row-item,.bug-item{transition-property:background-color,border-color,opacity,transform}
 </style>
 </body>
 </html>
