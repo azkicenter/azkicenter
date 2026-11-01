@@ -6083,7 +6083,7 @@ async function enterApp(user) {
     loadSupHiddenTabs();
   } else {
     loadTargets(user.id);
-    loadBugs(user.id);
+    loadBugs(user.id, true);
     loadAgentHiddenTabs();
   }
 
@@ -9289,7 +9289,15 @@ function updateBugsNotification(currentKeys) {
   document.querySelectorAll('.bugs-dot').forEach(dot => { dot.style.display = hasNew ? 'inline-block' : 'none'; });
 }
 
-async function loadBugs(userId) {
+// حداقل فاصله‌ی دو بار دریافت خطاها: ۱ ساعت (برای کم‌کردن حجم درخواست‌ها).
+// ورود اولیه و رفرش دستی (force) همیشه دریافت می‌کنند.
+const BUGS_MIN_INTERVAL_MS = 60 * 60 * 1000;
+let bugsLastFetchAt = 0;
+let bugsLastFetchUser = null;
+async function loadBugs(userId, force) {
+  if (!force && bugsLastFetchUser === userId && Date.now() - bugsLastFetchAt < BUGS_MIN_INTERVAL_MS) return;
+  bugsLastFetchAt = Date.now();
+  bugsLastFetchUser = userId;
   const container = document.getElementById('bugs-list');
   const { data, error } = await supabaseClient
     .from(TABLE_BUGS)
@@ -9338,7 +9346,7 @@ setInterval(() => {
   if (currentUserId && document.visibilityState === 'visible') {
     loadBugs(currentUserId);
   }
-}, 45000);
+}, BUGS_MIN_INTERVAL_MS);
 
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible' && currentUserId) {
@@ -11386,7 +11394,7 @@ async function centerSettingsRender(host) {
         case 'center': jobs.push(loadCenterView(currentUserId)); break;
         case 'leader': jobs.push(loadTeamView(currentUserId)); break;
         case 'supervisor': jobs.push(loadSupervisorView()); break;
-        default: jobs.push(loadTargets(currentUserId), loadBugs(currentUserId));
+        default: jobs.push(loadTargets(currentUserId), loadBugs(currentUserId, manual));
       }
       if (UM.host && UM.host.dataset.umInit && UM.host.offsetParent !== null) jobs.push(umLoad());
       await Promise.allSettled(jobs);
