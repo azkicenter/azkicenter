@@ -4374,9 +4374,9 @@ async function fetchLeaderCenterKeys() {
   const ids = (links || []).map(l => l.center_id).filter(Boolean);
   if (!ids.length) return new Set();
   const { data: profs, error: e2 } = await fetchAllRows((from, to) =>
-    supabaseClient.from(TABLE_PROFILES).select('id, full_name').in('id', ids).range(from, to));
+    supabaseClient.from(TABLE_PROFILES).select('id, full_name, status').in('id', ids).range(from, to));
   if (e2) throw new Error(e2.message);
-  return new Set((profs || []).map(c => normCenterKey(c.full_name)).filter(Boolean));
+  return new Set((profs || []).filter(c => c.status !== 'disabled').map(c => normCenterKey(c.full_name)).filter(Boolean));
 }
 
 async function loadAzkiPayrollView() {
@@ -6488,10 +6488,24 @@ async function loadTeamView(leaderId) {
       .range(from, to)
   );
 
-  const myCenterIds = (myCenterLinks || []).map(l => l.center_id).filter(Boolean);
+  let myCenterIds = (myCenterLinks || []).map(l => l.center_id).filter(Boolean);
+
+  // سنتر غیرفعال در پنل سرگروه نمایش داده نمی‌شود (تا دوباره فعال شود)
+  let allMyCentersOff = false;
+  if (!myCenterLinksError && myCenterIds.length) {
+    const { data: stRows } = await fetchAllRows((from, to) =>
+      supabaseClient.from(TABLE_PROFILES).select('id, status').in('id', myCenterIds).range(from, to));
+    const offIds = new Set((stRows || []).filter(c => c.status === 'disabled').map(c => c.id));
+    if (offIds.size) {
+      myCenterIds = myCenterIds.filter(id => !offIds.has(id));
+      allMyCentersOff = myCenterIds.length === 0;
+    }
+  }
 
   if (myCenterLinksError || myCenterIds.length === 0) {
-    container.innerHTML = '<div class="empty-state">هنوز سنتری به شما اساین نشده است</div>';
+    container.innerHTML = allMyCentersOff
+      ? '<div class="empty-state">همه‌ی سنترهای شما غیرفعال هستند</div>'
+      : '<div class="empty-state">هنوز سنتری به شما اساین نشده است</div>';
     document.getElementById('team-period-total').textContent = '۰';
     document.getElementById('team-with-target-count').textContent = '۰';
     document.getElementById('team-agent-count').textContent = '۰';
@@ -6829,7 +6843,7 @@ async function exportTargetsExcelFrom(d, btnId) {
 
     const byCenter = new Map();
     d.items.forEach(it => {
-      const c = fmtCenterName(it.m.centerName || 'بدون سنتر');
+      const c = fmtCenterName(it.m.centerName || 'بدون سنتر') + (it.m.centerDisabled ? ' (غیرفعال)' : '');
       if (!byCenter.has(c)) byCenter.set(c, []);
       byCenter.get(c).push(it);
     });
@@ -6903,7 +6917,7 @@ async function loadSupervisorView() {
   const { data: centers, error: centersError } = await fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_PROFILES)
-      .select('id, full_name')
+      .select('id, full_name, status')
       .eq('role', 'center')
       .order('full_name', { ascending: true })
       .range(from, to)
@@ -6916,7 +6930,8 @@ async function loadSupervisorView() {
   }
 
   const centerNameById = {};
-  (centers || []).forEach(c => { centerNameById[c.id] = c.full_name || 'بدون سنتر'; });
+  const centerDisabledById = {};
+  (centers || []).forEach(c => { centerNameById[c.id] = c.full_name || 'بدون سنتر'; if (c.status === 'disabled') centerDisabledById[c.id] = true; });
 
   const { data: centerAgentLinks, error: centerAgentLinksError } = await fetchAllRows((from, to) =>
     supabaseClient
@@ -6932,8 +6947,10 @@ async function loadSupervisorView() {
   }
 
   const centerNameByAgentId = {};
+  const centerOffByAgentId = {};
   (centerAgentLinks || []).forEach(l => {
     centerNameByAgentId[l.agent_id] = centerNameById[l.center_id] || 'بدون سنتر';
+    if (centerDisabledById[l.center_id]) centerOffByAgentId[l.agent_id] = true;
   });
 
   const allAgentIds = [...new Set((centerAgentLinks || []).map(l => l.agent_id).filter(Boolean))];
@@ -7005,14 +7022,19 @@ async function loadSupervisorView() {
     bugsByAgent[b.user_id].push(b);
   });
 
-  const items = allAgentIds.map(agentId => {
+  let items = allAgentIds.map(agentId => {
     const m = agentProfileById[agentId];
     if (!m) return null;
     const myRows = rowsByAgent[agentId] || [];
     const myBugs = bugsByAgent[agentId] || [];
     const myTotal = myRows.reduce((sum, r) => sum + (Number(r.target_count) || 0), 0);
-    return { m: { ...m, centerName: centerNameByAgentId[agentId] || 'بدون سنتر' }, myRows, myBugs, myTotal };
-  }).filter(it => it && (it.m.status !== 'disabled' || it.myRows.length > 0));   // غیرفعال فقط اگه تو بازه صدور داشته باشه
+    return { m: { ...m, centerName: centerNameByAgentId[agentId] || 'بدون سنتر', centerDisabled: !!centerOffByAgentId[agentId] }, myRows, myBugs, myTotal };
+  }).filter(it => it && (it.m.status !== 'disabled' || it.myRows.length > 0)
+                     && (!it.m.centerDisabled || it.myRows.length > 0));   // غیرفعال فقط اگه تو بازه صدور داشته باشه
+
+  // سنتر غیرفعال: تو تب صدور نمایش داده نمی‌شه تا فعال بشه؛ ولی (اگه تو بازه صدور داشته) تو خروجی اکسل/حقوق می‌آید
+  const allItems = items;
+  items = allItems.filter(it => !it.m.centerDisabled);
 
   const shownAgentIds = new Set(items.map(it => it.m.id));
   const targetCenterIds = new Set((centerAgentLinks || [])
@@ -7026,7 +7048,7 @@ async function loadSupervisorView() {
 
   agentSlaMap = buildSlaMapFromRows(rows, period.startSort);
   if (agentSlaMap && supTargetsFilter.custom) agentSlaPeriodLabel = faDigits(`${period.startLabel} تا ${period.endLabel}`);
-  window.supTargetsData = { items, period, slaMap: agentSlaMap };
+  window.supTargetsData = { items: allItems, period, slaMap: agentSlaMap };
   container.innerHTML = items.length
     ? buildGroupedMemberItemsHtml(items)
     : '<div class="empty-state">هنوز نیرویی به هیچ سنتری اساین نشده است</div>';
@@ -10072,8 +10094,8 @@ async function init(){
   if(A.role==='center')ids=[A.me];
   else if(A.role==='leader'){const r=await supabaseClient.from('leader_centers').select('center_id').eq('leader_id',A.me);ids=(r.data||[]).map(x=>x.center_id)}
   else{const r=await supabaseClient.from('profiles').select('id').eq('role','center').limit(2000);ids=(r.data||[]).map(x=>x.id)}
-  const p=ids.length?await supabaseClient.from('profiles').select('id, full_name').in('id',ids):{data:[]};
-  A.centers=(p.data||[]).map(x=>({id:x.id,name:x.full_name||'—'})).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
+  const p=ids.length?await supabaseClient.from('profiles').select('id, full_name, status').in('id',ids):{data:[]};
+  A.centers=(p.data||[]).filter(x=>!(A.role==='leader'&&x.status==='disabled')).map(x=>({id:x.id,name:x.full_name||'—'})).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
   A.sel=A.centers[0]&&A.centers[0].id;
 }
 async function nextCount(ids){
@@ -10579,8 +10601,8 @@ function usersOpen(host) {
   umLoad();
 }
 
-async function umCall(body) {
-  const { data, error } = await supabaseClient.functions.invoke('leader-users', { body });
+async function umCall(body, fn) {
+  const { data, error } = await supabaseClient.functions.invoke(fn || 'leader-users', { body });
   if (error) {
     let msg = error.message;
     try { const j = await error.context.json(); if (j && j.error) msg = j.error; } catch (_) {}
@@ -10599,6 +10621,10 @@ async function umLoad() {
     UM.leaders = (d.leaders || []).map(l => ({ id: l.id, name: l.full_name || '—' })).sort((a, b) => a.name.localeCompare(b.name, 'fa'));
     UM.centers = (d.centers || []).map(c => ({ id: c.id, name: c.full_name || '—', leaderIds: c.leader_ids || [] })).sort((a, b) => a.name.localeCompare(b.name, 'fa'));
     UM.agents = d.agents || [];
+    try {   // وضعیت فعال/غیرفعال سنترها
+      const cs = await supabaseClient.from('profiles').select('id, status').eq('role', 'center').limit(2000);
+      UM.cstatus = {}; (cs.data || []).forEach(x => { UM.cstatus[x.id] = x.status; });
+    } catch (_) { UM.cstatus = UM.cstatus || {}; }
     umRender();
   } catch (e) {
     if (!UM.loaded) list.innerHTML = '<div class="empty-state">خطا در دریافت اطلاعات: ' + umEsc(e.message) + '</div>';
@@ -10638,9 +10664,11 @@ function umRender() {
     }).join('') || '<div class="empty-state">نیرویی در این سنتر نیست</div>';
     const lead = lnames.length ? `<div class="um-lead">سرگروه: ${lnames.map(umEsc).join('، ')}</div>` : `<div class="um-lead none">سرگروه: تعیین نشده</div>`;
     const open = UM.open.has(c.id) || (q && ags.length);
-    return `<div class="um-center list-card${open ? ' open' : ''}" data-um-c="${c.id}"><div class="um-center-h" data-um-head="${c.id}" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}">
-        <div class="um-cwrap"><span class="um-caret"></span><div><div class="um-cname">${umEsc(c.name)}</div>${lead}</div></div>
+    const cOff = (UM.cstatus || {})[c.id] === 'disabled';
+    return `<div class="um-center list-card${open ? ' open' : ''}${cOff ? ' off' : ''}" data-um-c="${c.id}"><div class="um-center-h" data-um-head="${c.id}" role="button" tabindex="0" aria-expanded="${open ? 'true' : 'false'}">
+        <div class="um-cwrap"><span class="um-caret"></span><div><div class="um-cname">${umEsc(c.name)}${cOff ? ' <span class="um-badge">غیرفعال</span>' : ''}</div>${lead}</div></div>
         <div class="um-ch-end"><small>${faDigits(active)} فعال از ${faDigits(all.length)}</small>
+        <button class="um-btn sm ${cOff ? '' : 'ghost'}" type="button" data-um-ctoggle="${c.id}" data-um-to="${cOff ? 'active' : 'disabled'}">${cOff ? 'فعال کردن سنتر' : 'غیرفعال کردن سنتر'}</button>
         <button class="um-btn ghost sm" type="button" data-um-pass="${c.id}" data-um-kind="center">🔑 رمز سنتر</button>
         ${umCan('rename_center') ? `<button class="um-btn ghost sm" type="button" data-um-rename="${c.id}" data-um-kind="center">✏️ تغییر نام</button>` : ''}
         ${umIsSup() ? `<button class="um-btn ghost sm" type="button" data-um-lead="${c.id}">تغییر سرگروه</button>` : ''}</div>
@@ -10650,10 +10678,11 @@ function umRender() {
 }
 
 function umListClick(e) {
-  const t = e.target.closest('[data-um-toggle],[data-um-del],[data-um-lead],[data-um-pass],[data-um-rename],[data-um-head]');
+  const t = e.target.closest('[data-um-ctoggle],[data-um-toggle],[data-um-del],[data-um-lead],[data-um-pass],[data-um-rename],[data-um-head]');
   if (!t) return;
   if (t.dataset.umPass) return umPassModal(t.dataset.umPass, t.dataset.umKind === 'center');
   if (t.dataset.umRename) return umRenameModal(t.dataset.umRename, t.dataset.umKind === 'center');
+  if (t.dataset.umCtoggle) return umToggleCenter(t.dataset.umCtoggle, t.dataset.umTo, t);
   if (t.dataset.umToggle) return umToggle(t.dataset.umToggle, t.dataset.umTo, t);
   if (t.dataset.umDel) return umDelete(t.dataset.umDel, t);
   if (t.dataset.umLead) return umLeadersModal(t.dataset.umLead);
@@ -10668,6 +10697,18 @@ async function umToggle(id, to, btn) {
   if (!confirm(to === 'disabled' ? `«${name}» غیرفعال شود؟` : `«${name}» فعال شود؟`)) return;
   btn.disabled = true;
   try { await umCall({ action: 'set_status', agent_id: id, status: to }); umToast(to === 'disabled' ? 'کاربر غیرفعال شد' : 'کاربر فعال شد'); await umLoad(); }
+  catch (e) { btn.disabled = false; umToast('انجام نشد: ' + e.message); }
+}
+
+// فعال / غیرفعال کردن سنتر (Edge Function: center-status)
+async function umSetCenterStatus(id, to) { return umCall({ center_id: id, status: to }, 'center-status'); }
+async function umToggleCenter(id, to, btn) {
+  const name = ((UM.centers || []).find(c => c.id === id) || {}).name || '';
+  if (!confirm(to === 'disabled'
+    ? `سنتر «${name}» غیرفعال شود؟\n\nتا وقتی دوباره فعال نشود در تب صدور نمایش داده نمی‌شود؛ ولی اگر در بازه‌ی گزارش صدوری داشته باشد در خروجی حقوق می‌آید.`
+    : `سنتر «${name}» فعال شود؟`)) return;
+  btn.disabled = true;
+  try { await umSetCenterStatus(id, to); umToast(to === 'disabled' ? 'سنتر غیرفعال شد' : 'سنتر فعال شد'); await umLoad(); }
   catch (e) { btn.disabled = false; umToast('انجام نشد: ' + e.message); }
 }
 
@@ -10888,6 +10929,7 @@ function rhTable(details) {
 const RH_DISABLED_DAYS = 14;
 const RH_IDLE_DAYS = 7;
 RH_REASONS.active_no_issuance = 'فعال است ولی صدوری ثبت نشده';
+RH_REASONS.disabled_center_with_targets = 'غیرفعال است و سنترش هم غیرفعال است؛ ولی صدور ثبت شده';
 RH_REASONS.active_new_no_issuance = 'فعال است؛ حساب تازه ساخته شده و هنوز صدوری ثبت نشده';
 
 const rhIso = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
@@ -10908,6 +10950,8 @@ async function rhWatchData() {
   const centerOf = {};
   (ca.data || []).forEach(l => { if (!centerOf[l.agent_id]) centerOf[l.agent_id] = l.center_id; });
   const centerName = id => { const c = byId[centerOf[id]]; return c ? c.full_name : '—'; };
+  const centerOff = id => { const c = byId[centerOf[id]]; return !!c && c.status === 'disabled'; };
+  const offCenters = {};   // سنتر غیرفعالی که کارشناس‌هایش در بازه صدور داشته‌اند
 
   // ۱) غیرفعال ولی صدور ثبت‌شده
   const disabled = [];
@@ -10916,9 +10960,16 @@ async function rhWatchData() {
     const p = byId[r.agent_id];
     if (!p || p.role !== 'agent') return;
     if (r.report_date >= sinceIdle) issuedIdle.add(r.agent_id);
+    if (r.report_date >= rhIso(RH_DISABLED_DAYS) && centerOff(r.agent_id)) {
+      const cid = centerOf[r.agent_id];
+      const o = offCenters[cid] || (offCenters[cid] = { id: cid, name: centerName(r.agent_id), agents: new Set(), total: 0, last: '', lastSort: 0 });
+      o.agents.add(r.agent_id); o.total += Number(r.target_count) || 0;
+      if ((r.report_date_sort || 0) > o.lastSort) { o.lastSort = r.report_date_sort || 0; o.last = r.report_date_jalali || r.report_date; }
+    }
     if (p.status === 'active' || r.report_date < rhIso(RH_DISABLED_DAYS)) return;
     disabled.push({ date: r.report_date_jalali || r.report_date, sort: r.report_date_sort || 0, agent: p.full_name,
-      center: centerName(r.agent_id), count: Number(r.target_count) || 0, reason: 'disabled_with_targets' });
+      center: centerName(r.agent_id) + (centerOff(r.agent_id) ? ' (سنتر غیرفعال)' : ''), count: Number(r.target_count) || 0,
+      reason: centerOff(r.agent_id) ? 'disabled_center_with_targets' : 'disabled_with_targets' });
   });
   disabled.sort((a, b) => (b.sort - a.sort) || (b.count - a.count));
 
@@ -10943,7 +10994,9 @@ async function rhWatchData() {
       center: centerName(p.id), count: 0, reason: fresh && !l ? 'active_new_no_issuance' : 'active_no_issuance' };
   });
   idle.sort((a, b) => (a.sort - b.sort) || String(a.agent).localeCompare(String(b.agent), 'fa')); // بدون هیچ صدور اول، بعد قدیمی‌ترین
-  return { disabled, idle };
+  const offList = Object.values(offCenters).map(o => ({ id: o.id, name: o.name, agents: o.agents.size, total: o.total, last: o.last, lastSort: o.lastSort }))
+    .sort((a, b) => b.total - a.total);
+  return { disabled, idle, offCenters: offList };
 }
 
 function rhWatchCard(title, note, rows, badPill, emptyMsg, dateHead, err) {
@@ -10966,10 +11019,30 @@ function rhWatchCard(title, note, rows, badPill, emptyMsg, dateHead, err) {
     </div>`;
 }
 
+// کارت «سنتر غیرفعال ولی صدور ثبت‌شده» با دکمه‌ی فعال‌سازی سنتر
+function rhCenterCard(rows, err) {
+  const title = 'سنتر غیرفعال ولی صدور ثبت‌شده';
+  if (err) return `<div class="list-card rh-run"><div style="font-weight:700">${umEsc(title)}</div><div class="rh-meta" style="margin-top:8px">خواندن انجام نشد: ${umEsc(err.message || err)}</div></div>`;
+  const body = rows.length
+    ? `<div class="rh-wrap"><table class="rh-tbl"><thead><tr><th>آخرین صدور</th><th>نام سنتر</th><th>کارشناس‌های دارای صدور</th><th>جمع صدور</th><th>اقدام</th></tr></thead><tbody>${rows.map(o => `<tr>
+      <td>${umEsc(o.last || '—')}</td><td>${umEsc(o.name)}</td><td>${umEsc(o.agents)}</td><td>${umEsc(o.total)}</td>
+      <td><button class="um-btn sm" type="button" data-rh-center-on="${umEsc(o.id)}" data-rh-center-name="${umEsc(o.name)}">فعال کردن سنتر</button></td>
+    </tr>`).join('')}</tbody></table></div>`
+    : `<div class="rh-meta" style="margin-top:8px">در ${RH_DISABLED_DAYS} روز اخیر برای هیچ سنتر غیرفعالی صدور ثبت نشده است.</div>`;
+  return `<div class="list-card rh-run">
+      <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700">
+        <span>${umEsc(title)}</span>${rows.length ? `<span class="rh-pill bad">${rows.length} سنتر</span>` : '<span class="rh-pill ok">موردی نیست</span>'}
+      </div>
+      <div class="rh-meta">${RH_DISABLED_DAYS} روز اخیر؛ سنترهایی که غیرفعال هستند ولی کارشناس‌هایشان صدور دارند (تا فعال نشوند در تب صدور نمایش داده نمی‌شوند)</div>
+      ${body}
+    </div>`;
+}
+
 function rhWatchCards(data, err) {
-  const d = data || { disabled: [], idle: [] };
+  const d = data || { disabled: [], idle: [], offCenters: [] };
   const people = new Set(d.disabled.map(x => x.agent)).size, tot = d.disabled.reduce((s, x) => s + x.count, 0);
-  return rhWatchCard('غیرفعال ولی صدور ثبت‌شده',
+  return rhCenterCard(d.offCenters || [], err)
+    + rhWatchCard('غیرفعال ولی صدور ثبت‌شده',
       `${RH_DISABLED_DAYS} روز اخیر؛ کارشناس‌هایی که در پنل غیرفعال هستند ولی تارگتشان ثبت شده است`,
       d.disabled, `${people} نفر · ${d.disabled.length} روز · ${tot} صدور`,
       `در ${RH_DISABLED_DAYS} روز اخیر برای هیچ کارشناس غیرفعالی صدور ثبت نشده است.`, 'تاریخ', err)
@@ -10997,6 +11070,7 @@ async function runHistoryOpen(host) {
   if (!runs.length) {
     host.innerHTML = disHtml + '<div class="empty-state">هنوز هیچ اجرایی ثبت نشده است. بعد از اولین اجرای ورک‌فلو اینجا نمایش داده می‌شود.</div>';
     const rf0 = host.querySelector('#rh-refresh'); if (rf0) rf0.onclick = () => runHistoryOpen(host);
+    rhBindCenterActions(host);
     return;
   }
   const pill = r => {
@@ -11028,6 +11102,21 @@ async function runHistoryOpen(host) {
     </details>`).join('')}`;
   const rf = host.querySelector('#rh-refresh');
   if (rf) rf.onclick = () => runHistoryOpen(host);
+  rhBindCenterActions(host);
+}
+
+function rhBindCenterActions(host) {
+  if (!host || host.dataset.rhCenterBound) return;
+  host.dataset.rhCenterBound = '1';
+  host.addEventListener('click', async (e) => {
+    const b = e.target.closest('[data-rh-center-on]');
+    if (!b) return;
+    const name = b.dataset.rhCenterName || '';
+    if (!confirm(`سنتر «${name}» فعال شود؟`)) return;
+    b.disabled = true;
+    try { await umSetCenterStatus(b.dataset.rhCenterOn, 'active'); umToast('سنتر فعال شد'); await runHistoryOpen(host); }
+    catch (err) { b.disabled = false; umToast('انجام نشد: ' + err.message); }
+  });
 }
 
 // ============================================================
