@@ -2680,14 +2680,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
           <div class="value" id="admin-today-login-count">—</div>
         </div>
       </div>
-      <div class="admin-login-chart-card">
-        <div class="admin-group-header">
-          <span class="admin-group-title">تعداد ورود در ۳۰ روز گذشته</span>
-        </div>
-        <div id="admin-login-chart">
-          <div class="loading-state">در حال بارگذاری...</div>
-        </div>
-      </div>
       <div class="admin-groups-row">
         <div class="admin-group-card">
           <div class="admin-group-header">
@@ -2814,9 +2806,6 @@ loginForm.addEventListener('submit', async (e) => {
     showError(/network|fetch|failed to/i.test(error.message || '') ? 'اتصال به سرور برقرار نشد؛ اینترنت را بررسی کنید و دوباره تلاش کنید' : 'نام کاربری یا رمز عبور اشتباه است');
     return;
   }
-  supabaseClient.from('login_events').insert({ user_id: data.user.id }).then(({ error: logError }) => {
-    if (logError) console.warn('ثبت رویداد ورود ناموفق بود:', logError);
-  });
   enterApp(data.user);
 });
 
@@ -6021,8 +6010,6 @@ async function enterApp(user) {
     document.getElementById('panel-admin').classList.add('active');
     loadAdminView();
     if (!window.__adminViewTimer) window.__adminViewTimer = setInterval(() => { if (document.visibilityState === 'visible') loadAdminView(); }, 20000);
-    loadAdminLoginChart();
-    if (!window.__adminChartTimer) window.__adminChartTimer = setInterval(() => { if (document.visibilityState === 'visible') loadAdminLoginChart(); }, 5 * 60000);
   } else if (isCenter) {
     document.getElementById('main-tabs').style.display = 'none';
     document.getElementById('panel-targets').classList.remove('active');
@@ -6136,63 +6123,6 @@ function tehranJalaliParts(date) {
 function tehranJalaliKey(date) {
   const { jy, jm, jd } = tehranJalaliParts(date);
   return `${jy}/${jm}/${jd}`;
-}
-
-async function loadAdminLoginChart() {
-  const container = document.getElementById('admin-login-chart');
-  if (!container) return;
-
-  const DAYS = 30;
-  const now = new Date();
-  const dayKeys = [];
-  for (let i = DAYS - 1; i >= 0; i--) {
-    dayKeys.push(tehranJalaliKey(new Date(now.getTime() - i * 24 * 60 * 60 * 1000)));
-  }
-
-  const rangeStart = new Date(now.getTime() - (DAYS - 1) * 24 * 60 * 60 * 1000);
-  rangeStart.setHours(0, 0, 0, 0);
-
-  const { data, error } = await fetchAllRows((from, to) =>
-    supabaseClient
-      .from('login_events')
-      .select('logged_in_at')
-      .gte('logged_in_at', rangeStart.toISOString())
-      .range(from, to)
-  );
-
-  if (error) {
-    container.innerHTML = '<div class="admin-group-empty">خطا در دریافت آمار ورود</div>';
-    return;
-  }
-
-  const countsByDay = Object.fromEntries(dayKeys.map(k => [k, 0]));
-  (data || []).forEach(row => {
-    const key = tehranJalaliKey(new Date(row.logged_in_at));
-    if (countsByDay[key] !== undefined) countsByDay[key]++;
-  });
-
-  const maxCount = Math.max(1, ...dayKeys.map(k => countsByDay[k]));
-  const totalCount = dayKeys.reduce((sum, k) => sum + countsByDay[k], 0);
-
-  const bars = dayKeys.map((key, i) => {
-    const count = countsByDay[key];
-    const heightPct = count > 0 ? (count / maxCount) * 100 : 0;
-    const [, m, d] = key.split('/');
-    const dayLabel = `${m}/${d}`;
-    const tooltip = `${key} — ${formatNumber(count)} ورود`;
-    return `
-      <div class="admin-login-bar-wrap ${count > 0 ? 'has-logins' : ''}" title="${tooltip}">
-        <span class="admin-login-bar-count">${formatNumber(count)}</span>
-        <div class="admin-login-bar" style="height:${heightPct}%;"></div>
-        <span class="admin-login-bar-label">${dayLabel}</span>
-      </div>
-    `;
-  }).join('');
-
-  container.innerHTML = `
-    <div class="admin-login-chart-total">مجموع ۳۰ روز: ${formatNumber(totalCount)} ورود</div>
-    <div class="admin-login-chart-bars">${bars}</div>
-  `;
 }
 
 async function loadAdminView() {
