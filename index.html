@@ -50,6 +50,12 @@
 .rh-chev { display:inline-block; margin-inline-start:6px; color:var(--ink-soft); transition:transform .2s; }
 .rh-dis[open] .rh-chev { transform:rotate(180deg); }
 .rh-dis .st-chips { margin-top:10px; }
+/* تا وقتی چک نشست تموم نشده، فرم لاگین نشون داده نمی‌شه (قبلاً چشمک می‌زد) */
+#auth-splash{display:none;position:fixed;inset:0;z-index:50;flex-direction:column;align-items:center;justify-content:center;gap:14px;color:var(--ink-soft);font-size:14px}
+html.auth-pending #auth-splash{display:flex}
+html.auth-pending #login-screen{display:none !important}
+.auth-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:authspin .8s linear infinite}
+@keyframes authspin{to{transform:rotate(360deg)}}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
 <style>
@@ -1984,6 +1990,8 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
 <div class="bg-glow"></div>
 
+<script>document.documentElement.classList.add('auth-pending');setTimeout(function(){document.documentElement.classList.remove('auth-pending');},8000);</script>
+<div id="auth-splash" aria-live="polite"><div class="auth-spinner"></div><div>در حال بارگذاری...</div></div>
 <div class="center-screen" id="login-screen">
   <div class="login-card">
     <div class="login-logo">
@@ -2690,51 +2698,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
     </div>
 
-    <div class="panel" id="panel-admin">
-      <div class="period-label" id="admin-period-label"></div>
-      <div class="summary-row">
-        <div class="summary-card">
-          <div class="label">تعداد آنلاین</div>
-          <div class="value" id="admin-online-count">—</div>
-        </div>
-      </div>
-      <div class="summary-row">
-        <div class="summary-card">
-          <div class="label">تعداد ورود امروز</div>
-          <div class="value" id="admin-today-login-count">—</div>
-        </div>
-      </div>
-      <div class="admin-groups-row">
-        <div class="admin-group-card">
-          <div class="admin-group-header">
-            <span class="admin-group-title">سرگروه‌ها</span>
-            <span class="admin-group-count" id="admin-count-leader">—</span>
-          </div>
-          <div class="admin-group-list" id="admin-list-leader">
-            <div class="loading-state">در حال بارگذاری...</div>
-          </div>
-        </div>
-        <div class="admin-group-card">
-          <div class="admin-group-header">
-            <span class="admin-group-title">کارشناس‌های عادی</span>
-            <span class="admin-group-count" id="admin-count-normal">—</span>
-          </div>
-          <div class="admin-group-list" id="admin-list-normal">
-            <div class="loading-state">در حال بارگذاری...</div>
-          </div>
-        </div>
-        <div class="admin-group-card">
-          <div class="admin-group-header">
-            <span class="admin-group-title">سنترها</span>
-            <span class="admin-group-count" id="admin-count-center">—</span>
-          </div>
-          <div class="admin-group-list" id="admin-list-center">
-            <div class="loading-state">در حال بارگذاری...</div>
-          </div>
-        </div>
-      </div>
-    </div>
-
     <div class="panel" id="panel-agent-attendance"></div>
     <div class="panel" id="panel-training">
       <div class="tr-layout">
@@ -2774,6 +2737,16 @@ const USERNAME_EMAIL_DOMAIN = "bimename.com";
 
 const TABLE_TARGETS = "daily_targets";
 const TABLE_BUGS = "bug_reports";
+function isMissingObjError(e) {
+  return !!e && (e.code === 'PGRST205' || e.code === 'PGRST202' || e.status === 404 || /schema cache|does not exist|could not find/i.test(e.message || ''));
+}
+// دریافت خطاهای نیروها؛ اگه جدول bug_reports تو سوپابیس نباشه، همون بار اول متوقف می‌شه و دیگه درخواستی نمی‌ره
+async function fetchBugRowsSafe(builder) {
+  if (window.__bugsDisabled) return { data: [], error: null };
+  const r = await fetchAllRows(builder);
+  if (r && r.error && isMissingObjError(r.error)) { window.__bugsDisabled = true; return { data: [], error: null }; }
+  return r;
+}
 const TABLE_PROFILES = "profiles";
 const TABLE_TEAM_ASSIGNMENTS = "team_assignments";
 const TABLE_META = "app_meta";
@@ -6077,7 +6050,9 @@ function renderLastUpdateBar() {
   if (!bar) return;
   const d = window.__lastUpdateData || {};
   const label = window.__lastUpdateMode === 'reports' ? d.reports : d.targets;
-  if (!label) { bar.style.display = 'none'; return; }
+  if (!label) { delete bar.dataset.label; bar.style.display = 'none'; return; }
+  if (bar.dataset.label === label && bar.firstElementChild) { bar.style.display = 'flex'; return; }
+  bar.dataset.label = label;
   bar.innerHTML = `
     <span class="last-update-card">
       <span class="last-update-dot"></span>
@@ -6122,7 +6097,7 @@ async function enterApp(user) {
   currentUserId = user.id;
   window.__lastUpdateMode = 'targets';
   loadLastUpdate();
-  if (!window.__lastUpdateTimer) window.__lastUpdateTimer = setInterval(() => { if (document.visibilityState === 'visible') loadLastUpdate(); }, 2 * 60000);
+  // (تایمر جدای ۲ دقیقه‌ای حذف شد: softRefresh هر ۳ دقیقه خودش loadLastUpdate رو صدا می‌زنه)
 
   const { data: profile, error: profileError } = await supabaseClient
     .from(TABLE_PROFILES)
@@ -6130,7 +6105,6 @@ async function enterApp(user) {
     .eq('id', user.id)
     .single();
 
-  const isAdmin = !profileError && profile && profile.role === 'admin';
   const isCenter = !profileError && profile && profile.role === 'center';
   const isLeader = !profileError && profile && profile.role === 'leader';
   const isSupervisor = !profileError && profile && profile.role === 'supervisor';
@@ -6141,23 +6115,7 @@ async function enterApp(user) {
   const knownOtherRoles = ['admin', 'center', 'leader'];
   document.documentElement.classList.toggle('font-iransans', !knownOtherRoles.includes(currentUserRole));
 
-  startPresenceHeartbeat();
-
-  if (isAdmin) {
-    document.getElementById('main-tabs').style.display = 'none';
-    document.getElementById('panel-targets').classList.remove('active');
-    document.getElementById('panel-bugs').classList.remove('active');
-    document.getElementById('team-tabs').style.display = 'none';
-    document.getElementById('panel-team').classList.remove('active');
-    document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
-    document.getElementById('center-tabs').style.display = 'none';
-    document.getElementById('panel-center').classList.remove('active');
-    document.getElementById('panel-center-bugs').classList.remove('active');
-    document.getElementById('panel-supervisor').classList.remove('active');
-    document.getElementById('panel-admin').classList.add('active');
-    loadAdminView();
-    if (!window.__adminViewTimer) window.__adminViewTimer = setInterval(() => { if (document.visibilityState === 'visible') loadAdminView(); }, 20000);
-  } else if (isCenter) {
+  if (isCenter) {
     document.getElementById('main-tabs').style.display = 'none';
     document.getElementById('panel-targets').classList.remove('active');
     document.getElementById('panel-bugs').classList.remove('active');
@@ -6210,7 +6168,6 @@ async function enterApp(user) {
     document.getElementById('center-tabs').style.display = 'none';
     document.getElementById('panel-center').classList.remove('active');
     document.getElementById('panel-center-bugs').classList.remove('active');
-    document.getElementById('panel-admin').classList.remove('active');
     document.getElementById('panel-supervisor').classList.add('active');
     document.querySelector('main').classList.add('wide-nav');
     loadSupervisorView();
@@ -6222,26 +6179,11 @@ async function enterApp(user) {
   }
 
   appScreen.style.display = 'block';
+  document.documentElement.classList.remove('auth-pending');
 
   if (isLeader || isSupervisor) kbNotifyStart();
 
   if (window.refreshGlassReveals) window.refreshGlassReveals();
-}
-
-const ONLINE_THRESHOLD_MS = 60 * 1000;
-
-async function sendPresenceHeartbeat() {
-  try {
-    await supabaseClient.rpc('touch_last_seen');
-  } catch (e) { }
-}
-
-function startPresenceHeartbeat() {
-  sendPresenceHeartbeat();
-  if (window.__presenceTimer) return;
-  window.__presenceTimer = setInterval(() => {
-    if (document.visibilityState === 'visible') sendPresenceHeartbeat();
-  }, 25000);
 }
 
 function relativeTimeFa(dateStr) {
@@ -6270,95 +6212,6 @@ function tehranJalaliParts(date) {
 function tehranJalaliKey(date) {
   const { jy, jm, jd } = tehranJalaliParts(date);
   return `${jy}/${jm}/${jd}`;
-}
-
-async function loadAdminView() {
-  const { data, error } = await fetchAllRows((from, to) =>
-    supabaseClient
-      .from(TABLE_PROFILES)
-      .select('backoffice_id, full_name, last_seen_at, role')
-      .order('full_name', { ascending: true })
-      .range(from, to)
-  );
-
-  const groupIds = ['leader', 'normal', 'center'];
-  const groupContainers = Object.fromEntries(groupIds.map(g => [g, document.getElementById('admin-list-' + g)]));
-  const groupCounts = Object.fromEntries(groupIds.map(g => [g, document.getElementById('admin-count-' + g)]));
-
-  if (error) {
-    groupIds.forEach(g => {
-      groupContainers[g].innerHTML = `<div class="admin-group-empty">خطا در دریافت لیست کاربران</div>`;
-      groupCounts[g].textContent = '—';
-    });
-    document.getElementById('admin-online-count').textContent = '—';
-    document.getElementById('admin-today-login-count').textContent = '—';
-    return;
-  }
-  if (!data || data.length === 0) {
-    groupIds.forEach(g => {
-      groupContainers[g].innerHTML = '<div class="admin-group-empty">کاربری یافت نشد</div>';
-      groupCounts[g].textContent = '۰';
-    });
-    document.getElementById('admin-online-count').textContent = '۰';
-    document.getElementById('admin-today-login-count').textContent = '۰';
-    return;
-  }
-
-  const now = Date.now();
-  const withStatus = data.map(u => {
-    const lastSeenMs = u.last_seen_at ? new Date(u.last_seen_at).getTime() : null;
-    const isOnline = lastSeenMs != null && (now - lastSeenMs) < ONLINE_THRESHOLD_MS;
-    return { ...u, isOnline };
-  });
-
-  withStatus.sort((a, b) => {
-    if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
-    const aTime = a.last_seen_at ? new Date(a.last_seen_at).getTime() : -Infinity;
-    const bTime = b.last_seen_at ? new Date(b.last_seen_at).getTime() : -Infinity;
-    return bTime - aTime;
-  });
-
-  const onlineCount = withStatus.filter(u => u.isOnline).length;
-  document.getElementById('admin-online-count').textContent = formatNumber(onlineCount);
-
-  const todayKey = tehranDateKey(new Date());
-  const todayLoginCount = withStatus.filter(u => u.last_seen_at && tehranDateKey(new Date(u.last_seen_at)) === todayKey).length;
-  document.getElementById('admin-today-login-count').textContent = formatNumber(todayLoginCount);
-
-  document.getElementById('admin-period-label').textContent = 'وضعیت هر ۲۰ ثانیه به‌صورت خودکار به‌روزرسانی می‌شود';
-
-  const groups = { leader: [], normal: [], center: [] };
-  withStatus.forEach(u => {
-    if (u.role === 'leader') groups.leader.push(u);
-    else if (u.role === 'center') groups.center.push(u);
-    else if (u.role === 'admin') return;
-    else groups.normal.push(u);
-  });
-
-  const renderRow = u => `
-    <div class="row-item">
-      <div class="admin-row-name-wrap">
-        <span class="admin-status-dot ${u.isOnline ? 'online' : ''}"></span>
-        <div class="admin-row-info">
-          <span class="admin-row-name">${escHtml(u.full_name || '—')}</span>
-          <span class="admin-row-username">${escHtml(u.backoffice_id || '—')}</span>
-        </div>
-      </div>
-      <div style="text-align:left;">
-        <span class="admin-status-badge ${u.isOnline ? 'online' : ''}">${u.isOnline ? 'آنلاین' : 'آفلاین'}</span>
-        <div class="admin-last-seen">${relativeTimeFa(u.last_seen_at)}</div>
-      </div>
-    </div>
-  `;
-
-  groupIds.forEach(g => {
-    const list = groups[g];
-    groupCounts[g].textContent = formatNumber(list.length);
-    const html = list.length
-      ? list.map(renderRow).join('')
-      : '<div class="admin-group-empty">کسی در این گروه نیست</div>';
-    if (groupContainers[g]._h !== html) { groupContainers[g]._h = html; groupContainers[g].innerHTML = html; }
-  });
 }
 
 // پنل آموزش هر سنتر: نام پروفایل به «| آموزش» ختم می‌شه (مثلا «مرکز صدور قادری | آموزش»)
@@ -6600,8 +6453,9 @@ async function loadTeamView(leaderId) {
   window.teamLeaderId = leaderId;
   const token = ++teamLoadToken;
   const perfEl = document.getElementById('team-perf-list');
-  if (perfEl) perfEl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
-  document.getElementById('team-with-target-count').textContent = '—';
+  const firstLoad = !(perfEl && perfEl.children.length);   // رفرش‌های بعدی بدون چشمک «در حال بارگذاری»
+  if (perfEl && firstLoad) perfEl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
+  if (firstLoad) document.getElementById('team-with-target-count').textContent = '—';
   const period = teamTargetsPeriod();
   document.getElementById('team-period-label').textContent = faDigits(`${teamTargetsFilter.custom ? 'بازه‌ی نمایش' : 'بازه‌ی جاری'}: ${period.startLabel} تا ${period.endLabel}`);
 
@@ -6731,7 +6585,7 @@ async function loadTeamView(leaderId) {
     return;
   }
 
-  const { data: bugRows, error: bugRowsError } = await fetchAllRows((from, to) =>
+  const { data: bugRows, error: bugRowsError } = await fetchBugRowsSafe((from, to) =>
     supabaseClient
       .from(TABLE_BUGS)
       .select('*')
@@ -7178,7 +7032,7 @@ async function loadSupervisorView() {
     rowsByAgent[r.agent_id].push(r);
   });
 
-  const { data: bugRows, error: bugRowsError } = await fetchAllRows((from, to) =>
+  const { data: bugRows, error: bugRowsError } = await fetchBugRowsSafe((from, to) =>
     supabaseClient
       .from(TABLE_BUGS)
       .select('user_id, check_date_sort')
@@ -7575,7 +7429,7 @@ async function loadCenterData() {
         .order('agent_id', { ascending: true })
         .range(from, toIdx)
     ),
-    fetchAllRows((from, toIdx) =>
+    fetchBugRowsSafe((from, toIdx) =>
       supabaseClient
         .from(TABLE_BUGS)
         .select('*')
@@ -9501,6 +9355,7 @@ const BUGS_MIN_INTERVAL_MS = 60 * 60 * 1000;
 let bugsLastFetchAt = 0;
 let bugsLastFetchUser = null;
 async function loadBugs(userId, force) {
+  if (window.__bugsDisabled) return;      // جدول bug_reports وجود نداره → تو همین نشست دیگه درخواست نده
   if (!force && bugsLastFetchUser === userId && Date.now() - bugsLastFetchAt < BUGS_MIN_INTERVAL_MS) return;
   bugsLastFetchAt = Date.now();
   bugsLastFetchUser = userId;
@@ -9512,6 +9367,7 @@ async function loadBugs(userId, force) {
     .order('check_date_sort', { ascending: false });
 
   if (error) {
+    if ((e => !!e && (e.code === 'PGRST205' || e.code === 'PGRST202' || e.status === 404 || /schema cache|does not exist|could not find/i.test(e.message || '')))(error)) window.__bugsDisabled = true;
     if (!lastRenderedBugsKeysStr) {
       container.innerHTML = `<div class="empty-state">خطا در دریافت اطلاعات: ${escHtml(error.message)}</div>`;
     }
@@ -9544,8 +9400,12 @@ async function loadBugs(userId, force) {
 }
 
 (async () => {
-  const { data: { session } } = await supabaseClient.auth.getSession();
-  if (session) enterApp(session.user);
+  const done = () => document.documentElement.classList.remove('auth-pending');
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (session) enterApp(session.user).catch(done);
+    else done();                       // نشست نداریم → فرم لاگین نشون داده بشه
+  } catch (e) { done(); }
 })();
 
 setInterval(() => {
@@ -9559,6 +9419,14 @@ document.addEventListener('visibilitychange', () => {
     loadBugs(currentUserId);
   }
 });
+
+// رندر بی‌صدا: وقتی رفرش خودکار لیست‌ها رو دوباره می‌سازه، انیمیشن ورود کارت‌ها دوباره پخش نشه
+window.__silentRender = 0;
+window.silentRun = async function (fn) {
+  window.__silentRender++;
+  try { return await fn(); }
+  finally { setTimeout(function () { window.__silentRender = Math.max(0, window.__silentRender - 1); }, 700); }
+};
 
 (function () {
   var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -9634,6 +9502,7 @@ document.addEventListener('visibilitychange', () => {
   function prepareAndObserve(el) {
     if (el.dataset.glassObserved) return;
     el.dataset.glassObserved = '1';
+    if (window.__silentRender > 0) { el.classList.add('glass-reveal', 'glass-in'); return; }
     el.classList.add('glass-reveal');
     io.observe(el);
     requestAnimationFrame(function () {
@@ -9806,7 +9675,7 @@ const match=t=>(!S.q||((t.title||'')+' '+cms(t).map(c=>c.body).join(' ')).includ
 const USER_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
 const av=t=>{const a=ids(t);if(!a.length)return '';return `<span class="kb-av${a.length>1?' multi':''}" data-tid="${e(t.id)}">${USER_SVG}${a.length>1?'<em>'+a.length+'</em>':''}</span>`};
 async function load(){
-  S.me=(await supabaseClient.auth.getUser()).data.user?.id;
+  S.me=currentUserId||(await supabaseClient.auth.getSession()).data.session?.user?.id;
   const r=await supabaseClient.from(T).select('*').order('created_at',{ascending:false});
   S.err=r.error?('Failed to load tasks: '+r.error.message):'';
   S.tasks=(r.data||[]).filter(visible);
@@ -10077,7 +9946,7 @@ window.kbNotifyStart=async function(){
     document.addEventListener('click',ev=>{const p=document.getElementById('kb-pop');if(p&&!p.contains(ev.target)){S.popOpen=false;p.remove()}});
   }
   const tick=async()=>{try{await load();if(S.host&&S.host.isConnected&&S.host.offsetParent!==null&&!document.querySelector('.kb-ov'))shell();pulse();}catch(x){}};
-  await tick(); S.timer=setInterval(()=>{if(document.visibilityState==='visible')tick()},30000);
+  await tick(); S.timer=setInterval(()=>{if(document.visibilityState==='visible')tick()},60000);
 };
 })();
 </script>
@@ -10253,7 +10122,7 @@ const capMsg=n=>`در روز تعطیل/جمعه حداکثر ${faDigits(Math.ro
 const fmtP=p=>(p||[]).map(x=>faDigits(x[0])+'–'+faDigits(x[1])).join('، ');
 
 async function init(){
-  A.me=(await supabaseClient.auth.getUser()).data.user?.id; A.role=currentUserRole;
+  A.me=currentUserId||(await supabaseClient.auth.getSession()).data.session?.user?.id; A.role=currentUserRole;
   if(agt()){A.centers=[];A.sel=null;return}
   let ids=[];
   if(A.role==='center')ids=[A.me];
@@ -11653,15 +11522,22 @@ async function centerSettingsRender(host) {
     return !!document.querySelector('.um-modal, .kb-modal, .kb-m, .att-m');
   }
 
+  let lastDataKey = null;
   async function softRefresh(manual) {
     if (busy || !currentUserId) return;
     if (!manual && userIsBusy()) return;
     busy = true;
+    const silent = !manual;
+    if (silent) window.__silentRender = (window.__silentRender || 0) + 1;
     try {
+      if (typeof loadLastUpdate === 'function') { try { await loadLastUpdate(); } catch (e) { } }
+      // داده‌ی اصلی فقط وقتی n8n آپدیت کرده عوض می‌شه؛ پس تا وقتی «آخرین آپدیت» عوض نشده رفرش خودکار
+      // داده‌ی سنگین رو دوباره نمی‌گیره (برای اطمینان حداکثر هر ۱۵ دقیقه یک‌بار). رفرش دستی همیشه می‌گیره.
+      const dataKey = JSON.stringify(window.__lastUpdateData || {}) + ':' + Math.floor(Date.now() / 900000);
+      if (!manual && dataKey === lastDataKey) return;
+      lastDataKey = dataKey;
       const jobs = [];
-      if (typeof loadLastUpdate === 'function') jobs.push(loadLastUpdate());
       switch (currentUserRole) {
-        case 'admin': jobs.push(loadAdminView()); break;
         case 'center': jobs.push(loadCenterView(currentUserId)); break;
         case 'leader': jobs.push(loadTeamView(currentUserId)); break;
         case 'supervisor': jobs.push(loadSupervisorView()); break;
@@ -11670,6 +11546,7 @@ async function centerSettingsRender(host) {
       if (UM.host && UM.host.dataset.umInit && UM.host.offsetParent !== null) jobs.push(umLoad());
       await Promise.allSettled(jobs);
     } finally {
+      if (silent) setTimeout(() => { window.__silentRender = Math.max(0, (window.__silentRender || 1) - 1); }, 700);
       busy = false; last = Date.now();
       if (window.refreshGlassReveals) window.refreshGlassReveals();
     }
