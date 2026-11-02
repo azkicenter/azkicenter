@@ -9279,6 +9279,20 @@ async function trPersonal(q) {
   return null;
 }
 
+// پیام‌های خطای سیستم یه کدِ متغیر دارن («… - کد داخلی بیمه نامه 10431888») که هر بار عوض می‌شه و تو شیت نیست؛
+// قبل از جستجو پیشوند «آیتم جدید :»، برچسب+کد و هر عدد ۵ رقمی یا بیشتر حذف می‌شه تا فقط متن ثابتِ خطا جستجو بشه.
+// اگه بعد از پاک‌سازی چیزی از سوال نمونه، همون سوالِ اصلی جستجو می‌شه. (عددهای کوتاه مثل «کد صندوق 1395» دست نمی‌خورن.)
+function trCleanQuery(q) {
+  const n = trNorm(q);
+  const cleaned = n
+    .replace(/^\s*(?:ایتم|آیتم)\s+جدید\s*[:\-–—]?\s*/, '')
+    .replace(/(?:\s*[-–—،,:]\s*)?(?:کد|شماره|شناسه)(?:\s+[^\d\s:\-–—]+){0,5}\s*[:#]?\s*\d{5,}/g, ' ')
+    .replace(/\d{5,}/g, ' ')
+    .replace(/\s*[-–—:،,]+\s*$/, '')
+    .replace(/\s+/g, ' ').trim();
+  return trTokens(cleaned).length ? cleaned : q;
+}
+
 async function trAsk(q) {
   q = String(q || '').trim();
   if (!q) return;
@@ -9305,7 +9319,7 @@ async function trAsk(q) {
     return;
   }
   if (!trainState.loaded) { trAddMsg('bot', 'هنوز داده‌ها از شیت نیامده. اینترنت را چک کن و چند لحظه بعد دوباره امتحان کن.'); return; }
-  const qs = st && st.rest ? st.rest : q;   // اگه اول جمله سلام بود، فقط بقیه‌ی جمله جستجو می‌شه
+  const qs = trCleanQuery(st && st.rest ? st.rest : q);   // اگه اول جمله سلام بود، فقط بقیه‌ی جمله جستجو می‌شه؛ کدهای متغیرِ پیام خطا هم حذف می‌شن
   const comp = trCompanyOnly(qs);
   if (comp && trCompanyMenu(comp)) { trLog('سوال', q, 'انتخاب موضوع', null); return; }
   const res = trSearch(qs, '__all');
