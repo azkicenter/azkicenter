@@ -47,6 +47,9 @@
   .rh-tbl { width:100%; border-collapse:collapse; font-size:13px; }
   .rh-tbl th, .rh-tbl td { padding:7px 10px; text-align:right; border-bottom:1px solid rgba(120,130,150,.18); white-space:nowrap; }
   .rh-tbl th { font-weight:700; color:var(--ink-soft); font-size:12px; }
+.rh-chev { display:inline-block; margin-inline-start:6px; color:var(--ink-soft); transition:transform .2s; }
+.rh-dis[open] .rh-chev { transform:rotate(180deg); }
+.rh-dis .st-chips { margin-top:10px; }
 </style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
 <style>
@@ -11089,7 +11092,8 @@ function rhTable(details) {
 // دو کارت پایش در تب تاریخچه گزارش (از daily_targets):
 //  ۱) «غیرفعال ولی صدور ثبت‌شده»: کارشناس غیرفعال که در RH_DISABLED_DAYS روز اخیر target_count > 0 دارد
 //  ۲) «فعال ولی بدون صدور»: کارشناس فعال که در RH_IDLE_DAYS روز اخیر هیچ صدوری ندارد (حساب‌های «آموزش» حساب نمی‌شوند)
-const RH_DISABLED_DAYS = 14;
+const RH_DISABLED_DAYS = 7;    // «غیرفعال ولی صدور ثبت‌شده» (کارشناس) — ۷ روزه
+const RH_CENTER_DAYS = 14;     // «سنتر غیرفعال ولی صدور ثبت‌شده» — بدون تغییر
 const RH_IDLE_DAYS = 7;
 RH_REASONS.active_no_issuance = 'فعال است ولی صدوری ثبت نشده';
 RH_REASONS.disabled_center_with_targets = 'غیرفعال است و سنترش هم غیرفعال است؛ ولی صدور ثبت شده';
@@ -11098,7 +11102,7 @@ RH_REASONS.active_new_no_issuance = 'فعال است؛ حساب تازه ساخ�
 const rhIso = d => new Date(Date.now() - d * 86400000).toISOString().slice(0, 10);
 
 async function rhWatchData() {
-  const since = rhIso(Math.max(RH_DISABLED_DAYS, RH_IDLE_DAYS));
+  const since = rhIso(Math.max(RH_DISABLED_DAYS, RH_CENTER_DAYS, RH_IDLE_DAYS));
   const sinceIdle = rhIso(RH_IDLE_DAYS);
   const [pr, ca, tg] = await Promise.all([
     fetchAllRows((f, t) => supabaseClient.from('profiles').select('id, full_name, role, status, created_at').in('role', ['agent', 'center']).range(f, t)),
@@ -11123,14 +11127,14 @@ async function rhWatchData() {
     const p = byId[r.agent_id];
     if (!p || p.role !== 'agent') return;
     if (r.report_date >= sinceIdle) issuedIdle.add(r.agent_id);
-    if (r.report_date >= rhIso(RH_DISABLED_DAYS) && centerOff(r.agent_id)) {
+    if (r.report_date >= rhIso(RH_CENTER_DAYS) && centerOff(r.agent_id)) {
       const cid = centerOf[r.agent_id];
       const o = offCenters[cid] || (offCenters[cid] = { id: cid, name: centerName(r.agent_id), agents: new Set(), total: 0, last: '', lastSort: 0 });
       o.agents.add(r.agent_id); o.total += Number(r.target_count) || 0;
       if ((r.report_date_sort || 0) > o.lastSort) { o.lastSort = r.report_date_sort || 0; o.last = r.report_date_jalali || r.report_date; }
     }
     if (p.status === 'active' || r.report_date < rhIso(RH_DISABLED_DAYS)) return;
-    disabled.push({ date: r.report_date_jalali || r.report_date, sort: r.report_date_sort || 0, agent: p.full_name,
+    disabled.push({ date: r.report_date_jalali || r.report_date, iso: r.report_date, sort: r.report_date_sort || 0, agent: p.full_name,
       center: centerName(r.agent_id) + (centerOff(r.agent_id) ? ' (سنتر غیرفعال)' : ''), count: Number(r.target_count) || 0,
       reason: centerOff(r.agent_id) ? 'disabled_center_with_targets' : 'disabled_with_targets' });
   });
@@ -11191,24 +11195,87 @@ function rhCenterCard(rows, err) {
       <td>${umEsc(o.last || '—')}</td><td>${umEsc(o.name)}</td><td>${umEsc(o.agents)}</td><td>${umEsc(o.total)}</td>
       <td><button class="um-btn sm" type="button" data-rh-center-on="${umEsc(o.id)}" data-rh-center-name="${umEsc(o.name)}">فعال کردن سنتر</button></td>
     </tr>`).join('')}</tbody></table></div>`
-    : `<div class="rh-meta" style="margin-top:8px">در ${RH_DISABLED_DAYS} روز اخیر برای هیچ سنتر غیرفعالی صدور ثبت نشده است.</div>`;
+    : `<div class="rh-meta" style="margin-top:8px">در ${RH_CENTER_DAYS} روز اخیر برای هیچ سنتر غیرفعالی صدور ثبت نشده است.</div>`;
   return `<div class="list-card rh-run">
       <div style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;font-weight:700">
         <span>${umEsc(title)}</span>${rows.length ? `<span class="rh-pill bad">${rows.length} سنتر</span>` : '<span class="rh-pill ok">موردی نیست</span>'}
       </div>
-      <div class="rh-meta">${RH_DISABLED_DAYS} روز اخیر؛ سنترهایی که غیرفعال هستند ولی کارشناس‌هایشان صدور دارند (تا فعال نشوند در تب صدور نمایش داده نمی‌شوند)</div>
+      <div class="rh-meta">${RH_CENTER_DAYS} روز اخیر؛ سنترهایی که غیرفعال هستند ولی کارشناس‌هایشان صدور دارند (تا فعال نشوند در تب صدور نمایش داده نمی‌شوند)</div>
       ${body}
     </div>`;
 }
 
+// ---- کارت «غیرفعال ولی صدور ثبت‌شده»: لیست کشویی + فیلتر روز ----
+const rhDis = { open: false, filter: 'all', rows: [] };   // وضعیت باز/بسته و فیلتر بعد از هر رفرش حفظ می‌شود
+const RH_DIS_FILTERS = [['today', 'امروز'], ['yesterday', 'دیروز'], ['3d', '۳ روز اخیر'], ['all', 'کل ' + RH_DISABLED_DAYS + ' روز']];
+
+function rhDisFiltered(rows, f) {
+  if (f === 'all') return rows;
+  const day = n => tehranDateKey(new Date(Date.now() - n * 86400000));
+  if (f === 'today') return rows.filter(r => r.iso === day(0));
+  if (f === 'yesterday') return rows.filter(r => r.iso === day(1));
+  if (f === '3d') return rows.filter(r => r.iso >= day(2));
+  return rows;
+}
+
+function rhDisChipsHtml() {
+  return RH_DIS_FILTERS.map(([k, n]) => {
+    const people = new Set(rhDisFiltered(rhDis.rows, k).map(x => x.agent)).size;
+    return `<button type="button" class="${rhDis.filter === k ? 'on' : ''}" data-rh-dis-filter="${k}">${n} (${people})</button>`;
+  }).join('');
+}
+
+function rhDisBodyHtml() {
+  const rows = rhDisFiltered(rhDis.rows, rhDis.filter);
+  if (!rows.length) {
+    const msg = rhDis.filter === 'all'
+      ? `در ${RH_DISABLED_DAYS} روز اخیر برای هیچ کارشناس غیرفعالی صدور ثبت نشده است.`
+      : 'در این بازه کارشناس غیرفعالی با صدور ثبت‌شده نداریم.';
+    return `<div class="rh-meta" style="margin-top:8px">${umEsc(msg)}</div>`;
+  }
+  return `<div class="rh-wrap"><table class="rh-tbl"><thead><tr><th>تاریخ</th><th>نام کارشناس</th><th>نام سنتر</th><th>تعداد صدور</th><th>علت</th></tr></thead><tbody>${rows.map(d => `<tr>
+      <td>${umEsc(d.date || '—')}</td>
+      <td>${umEsc(d.agent || '—')}</td>
+      <td>${umEsc(d.center || '—')}</td>
+      <td>${umEsc(d.count)}</td>
+      <td>${umEsc(RH_REASONS[d.reason] || d.reason || '')}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function rhDisabledCard(rows, err) {
+  const title = 'غیرفعال ولی صدور ثبت‌شده';
+  if (err) return rhWatchCard(title, '', [], '', '', '', err);
+  rhDis.rows = rows || [];
+  const people = new Set(rhDis.rows.map(x => x.agent)).size, tot = rhDis.rows.reduce((s, x) => s + x.count, 0);
+  return `<details class="list-card rh-run rh-dis" id="rh-dis-card"${rhDis.open ? ' open' : ''}>
+      <summary>
+        <span>${umEsc(title)}<span class="rh-chev">▾</span></span>${rhDis.rows.length ? `<span class="rh-pill bad">${people} نفر · ${rhDis.rows.length} روز · ${tot} صدور</span>` : '<span class="rh-pill ok">موردی نیست</span>'}
+      </summary>
+      <div class="rh-meta" style="margin-top:6px">${RH_DISABLED_DAYS} روز اخیر؛ کارشناس‌هایی که در پنل غیرفعال هستند ولی تارگتشان ثبت شده است</div>
+      <div class="st-chips" id="rh-dis-chips">${rhDisChipsHtml()}</div>
+      <div id="rh-dis-body">${rhDisBodyHtml()}</div>
+    </details>`;
+}
+
+function rhBindDisabledActions(host) {
+  if (!host || host.dataset.rhDisBound) return;
+  host.dataset.rhDisBound = '1';
+  // toggle بابل نمی‌شود → با capture گوش می‌دهیم تا باز/بسته‌بودن بعد از رفرش حفظ شود
+  host.addEventListener('toggle', e => { if (e.target && e.target.id === 'rh-dis-card') rhDis.open = e.target.open; }, true);
+  host.addEventListener('click', e => {
+    const b = e.target.closest('[data-rh-dis-filter]');
+    if (!b) return;
+    rhDis.filter = b.dataset.rhDisFilter;
+    const chips = host.querySelector('#rh-dis-chips'), body = host.querySelector('#rh-dis-body');
+    if (chips) chips.innerHTML = rhDisChipsHtml();
+    if (body) body.innerHTML = rhDisBodyHtml();
+  });
+}
+
 function rhWatchCards(data, err) {
   const d = data || { disabled: [], idle: [], offCenters: [] };
-  const people = new Set(d.disabled.map(x => x.agent)).size, tot = d.disabled.reduce((s, x) => s + x.count, 0);
   return rhCenterCard(d.offCenters || [], err)
-    + rhWatchCard('غیرفعال ولی صدور ثبت‌شده',
-      `${RH_DISABLED_DAYS} روز اخیر؛ کارشناس‌هایی که در پنل غیرفعال هستند ولی تارگتشان ثبت شده است`,
-      d.disabled, `${people} نفر · ${d.disabled.length} روز · ${tot} صدور`,
-      `در ${RH_DISABLED_DAYS} روز اخیر برای هیچ کارشناس غیرفعالی صدور ثبت نشده است.`, 'تاریخ', err)
+    + rhDisabledCard(d.disabled, err)
     + rhWatchCard('فعال ولی بدون صدور',
       `${RH_IDLE_DAYS} روز اخیر؛ کارشناس‌های فعال بدون هیچ صدوری (ستون تاریخ = آخرین صدور ثبت‌شده)`,
       d.idle, `${d.idle.length} نفر`,
@@ -11233,7 +11300,7 @@ async function runHistoryOpen(host) {
   if (!runs.length) {
     host.innerHTML = disHtml + '<div class="empty-state">هنوز هیچ اجرایی ثبت نشده است. بعد از اولین اجرای ورک‌فلو اینجا نمایش داده می‌شود.</div>';
     const rf0 = host.querySelector('#rh-refresh'); if (rf0) rf0.onclick = () => runHistoryOpen(host);
-    rhBindCenterActions(host);
+    rhBindCenterActions(host); rhBindDisabledActions(host);
     return;
   }
   const pill = r => {
@@ -11265,7 +11332,7 @@ async function runHistoryOpen(host) {
     </details>`).join('')}`;
   const rf = host.querySelector('#rh-refresh');
   if (rf) rf.onclick = () => runHistoryOpen(host);
-  rhBindCenterActions(host);
+  rhBindCenterActions(host); rhBindDisabledActions(host);
 }
 
 function rhBindCenterActions(host) {
