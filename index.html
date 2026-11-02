@@ -8503,9 +8503,9 @@ const TRAIN_CACHE_KEY = 'trainingSheetCache_v2';
 const TRAIN_CACHE_TTL = 5 * 60 * 1000;
 const trainState = { chunks: [], sheets: [], failed: [], loaded: false, loading: null, scope: '__all', idf: {}, avgLen: 1, bound: false, fetchedAt: 0 };
 
-const TR_STOP = new Set(('و در به از که این را با است برای آن یک هم چی چیه چیست چه چطور چطوری چگونه کجا کی آیا باید می شود میشه میشود هست نیست بود شد کنم کنیم کنید کرد دارد دارم رو من ما شما تو اگه اگر یا ولی اما تا بعد قبل بین هر همه کدوم کدام بگو بگید بگین بده بدید توضیح درباره میخوام میخواد خواهد بشه باشه کنه کنن کنند بیمه نامه چنده چقدره چقدر چند چندتا چنتا کدومه میدونی بلدی').split(' '));
+const TR_STOP = new Set(('و در به از که این را با است برای آن یک هم چی چیه چیست چه چطور چطوری چگونه کجا کی آیا باید می شود میشه میشود هست نیست بود شد کنم کنیم کنید کرد دارد دارم داره دارن دارند دارید داری رو من ما شما تو اگه اگر یا ولی اما تا بعد قبل بین هر همه کدوم کدام بگو بگید بگین بده بدید توضیح درباره میخوام میخواد خواهد بشه باشه کنه کنن کنند کند کنی میکنه میکنن میکنند میکند میکنید میکنم میکنی میکنیم بیمه نامه چنده چقدره چقدر چند چندتا چنتا کدومه میدونی بلدی').split(' '));
 // مترادف‌های گفتاری سوال ← کلماتی که توی متن شیت هست (کلید = ریشه‌ی کلمه‌ی سوال)
-const TR_SYN = { 'میزنه': ['صدور', 'صادر'], 'میزنن': ['صدور', 'صادر'], 'میزنند': ['صدور', 'صادر'], 'میزنید': ['صدور', 'صادر'], 'میزنی': ['صدور', 'صادر'], 'بزنیم': ['صدور', 'صادر'], 'بزنم': ['صدور', 'صادر'], 'بزنن': ['صدور', 'صادر'], 'جلو': ['زود'], 'زود': ['جلو'], 'شماره': ['کد'], 'کد': ['شماره'] };
+const TR_SYN = { 'میزنه': ['صدور', 'صادر'], 'میزنن': ['صدور', 'صادر'], 'میزنند': ['صدور', 'صادر'], 'میزنید': ['صدور', 'صادر'], 'میزنی': ['صدور', 'صادر'], 'بزنیم': ['صدور', 'صادر'], 'بزنم': ['صدور', 'صادر'], 'بزنن': ['صدور', 'صادر'], 'صادر': ['صدور'], 'صدور': ['صادر'], 'جلو': ['زود'], 'زود': ['جلو'], 'شماره': ['کد'], 'کد': ['شماره'] };
 const TR_SUF = ['هایی', 'ترین', 'های', 'ها', 'ان', 'ات', 'تر', 'ی'];
 
 function trNorm(s) {
@@ -8703,12 +8703,13 @@ function trSearch(question, scope) {
   trainState.chunks.forEach(c => {
     if (scope !== '__all' && c.sheet !== scope) return;
     let score = 0, hit = 0;
+    const miss = [];
     qTok.forEach(t => {
       let tf = c.tf[t] || 0;
       if (!tf && TR_SYN[t]) { for (const sy of TR_SYN[t]) { if (c.tf[sy]) { tf = c.tf[sy] * 0.7; break; } } }
       if (!tf && t.length >= 4) { for (const k in c.tf) { if (k.length >= 4 && (k.startsWith(t) || t.startsWith(k))) { tf = c.tf[k] * 0.6; break; } } }
       if (!tf && fz[t]) { for (const v of fz[t]) { if (c.tf[v]) { tf = c.tf[v] * 0.5; break; } } }   // غلط املایی
-      if (!tf) return;
+      if (!tf) { miss.push(t); return; }
       hit++;
       const idf = trainState.idf[t] || 1;
       score += idf * (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * c.tokens.length / avg));
@@ -8723,7 +8724,7 @@ function trSearch(question, scope) {
     const cover = hit / total;
     score *= 0.5 + 0.5 * cover;
     if (c.isHeader) score *= 0.35;
-    res.push({ c, score });
+    res.push({ c, score, miss });
   });
   res.sort((a, b) => b.score - a.score);
   return res.slice(0, 4);
@@ -9365,8 +9366,13 @@ async function trAsk(q) {
   const exact = top.q != null && top.qKey === trWords(qs).filter(w => !TR_STOP.has(w)).join(' ');
   const near = (top.q != null && !exact && trPlain(top).length <= 15) ? `<div class="tr-alt" style="margin-bottom:4px">نزدیک‌ترین سوال: «${escHtml(top.q)}»</div>` : '';
   const ageMs = Date.now() - trainState.fetchedAt;
+  // کلمه‌ای از سوال که تو هیچ جای شیت نیست (مثلاً اسم شرکتی که تو شیت نداریم) ولی بقیه‌ی کلمه‌ها به یه رکورد خوردن:
+  // جواب ممکنه مربوط به چیز دیگه‌ای باشه، پس صریح هشدار می‌دیم.
+  const stemWord = {}; trWords(qs).forEach(w => { stemWord[trStem(w)] = w; });
+  const unknownWords = (res[0].miss || []).filter(x => x.length >= 3 && !trainState.idf[x]).map(x => stemWord[x] || x);
+  const missNote = unknownWords.length ? `<div class="tr-alt" style="margin-top:6px">⚠ «${escHtml(unknownWords.join('، '))}» تو شیت پیدا نشد؛ این جواب ممکنه مربوط به سوالت نباشه. اگه مطمئن نیستی از سرگروه بپرس.</div>` : '';
   const staleNote = ageMs > 90000 ? `<div class="tr-alt" style="margin-top:6px">⚠ نسخه‌ی تازه‌ی شیت گرفته نشد؛ این جواب از نسخه‌ی ${faDigits(Math.max(1, Math.round(ageMs / 60000)))} دقیقه پیش است.</div>` : '';
-  trAddMsg('bot', near + trRenderChunk(top, trTokens(qs), trIsYesNo(qs)) + staleNote);
+  trAddMsg('bot', near + trRenderChunk(top, trTokens(qs), trIsYesNo(qs)) + missNote + staleNote);
   trLog('سوال', q, 'پاسخ داده شد', top);
 }
 
