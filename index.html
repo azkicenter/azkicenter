@@ -6217,7 +6217,19 @@ function tehranJalaliKey(date) {
 // پنل آموزش هر سنتر: نام پروفایل به «| آموزش» ختم می‌شه (مثلا «مرکز صدور قادری | آموزش»)
 function isTrainingPanel(m) { return /\|\s*آموزش\s*$/.test((m && m.full_name) || ''); }
 
+// عدد «خطا» کنار صدور هر کارشناس = تعداد ردیف‌های همون کارشناس تو جدول discrepancy_errors (همون داده‌ی تب «خطای صدور»)
+function discAgentBadgeText(agentId) {
+  const n = (window.DISC && window.DISC.countFor) ? window.DISC.countFor(agentId) : 0;
+  return `${faDigits(formatNumber(n))} خطا`;
+}
+let _discBadgeTimer = null;
+function discScheduleBadges() {   // بعد از ساخته‌شدن لیست: اگه خطاها هنوز دریافت نشدن می‌گیره، وگرنه فقط عددها رو به‌روز می‌کنه
+  if (_discBadgeTimer) return;
+  _discBadgeTimer = setTimeout(() => { _discBadgeTimer = null; if (window.DISC && window.DISC.ensure) window.DISC.ensure(); }, 0);
+}
+
 function buildMemberItemsHtml(membersWithTotals) {
+  discScheduleBadges();
   return membersWithTotals.map(({ m, myRows, myBugs, myTotal }) => {
     const displayName = m.full_name || m.backoffice_id || '—';
 
@@ -6244,7 +6256,7 @@ function buildMemberItemsHtml(membersWithTotals) {
           </div>
           <div class="team-right">
             ${slaHtml}
-            <span class="team-bug-total">${myBugs.length} خطا</span>
+            <span class="team-bug-total" data-disc-agent="${m.id}">${discAgentBadgeText(m.id)}</span>
             <span class="team-total">${formatNumber(myTotal)}</span>
           </div>
         </button>
@@ -7943,10 +7955,12 @@ function issuanceSplitHtml(model) {
   const cell = v => `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`;
   const cells = x => `${cell(x.normal)}${cell(x.transfer)}${hasUnknown ? cell(x.unknown) : ''}<td class="is-total">${formatNumber(x.total)}</td>`;
   const card = (label, v) => `<div class="summary-card"><div class="label">${label}</div><div class="value">${formatNumber(v)}</div></div>`;
+  const pct = sum.total > 0 ? (sum.transfer / sum.total) * 100 : null;
+  const pctCard = `<div class="summary-card"><div class="label">درصد سفارشات انتقالی</div><div class="value">${pct == null ? '—' : formatNumber(pct) + '٪'}</div></div>`;
   const head = `
-    <div class="cp-split-title">تعداد صدور کارشناس‌ها: غیرانتقالی و انتقال تخفیفی <small>(کل بازه‌ی انتخابی)</small></div>
-    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقال تخفیفی', sum.transfer)}</div>`;
-  const note = hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقال تخفیفی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل بماند.</div>` : '';
+    <div class="cp-split-title">تعداد صدور کارشناس‌ها: غیرانتقالی و انتقالی <small>(کل بازه‌ی انتخابی)</small></div>
+    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقالی', sum.transfer)}${pctCard}</div>`;
+  const note = hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقالی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل بماند.</div>` : '';
 
   if (grouped) {
     // مثل تب «صدور»: هر سنتر یک کارت بازشونده؛ داخلش ردیف هر کارشناس
@@ -7954,7 +7968,7 @@ function issuanceSplitHtml(model) {
     const agentRow = x => `
         <div class="team-day-row cp-agent-row">
           <span class="team-day-date cp-agent-name">${escHtml(x.name)}</span>
-          <span class="cp-agent-m">${m('غیرانتقالی', x.normal)}${m('انتقال تخفیفی', x.transfer)}${hasUnknown ? m('نامشخص', x.unknown) : ''}<span class="team-day-badge">${formatNumber(x.total)}</span></span>
+          <span class="cp-agent-m">${m('غیرانتقالی', x.normal)}${m('انتقالی', x.transfer)}${hasUnknown ? m('نامشخص', x.unknown) : ''}<span class="team-day-badge">${formatNumber(x.total)}</span></span>
         </div>`;
     const cards = groups.map(g => `
       <div class="leader-item">
@@ -7965,7 +7979,7 @@ function issuanceSplitHtml(model) {
           </div>
           <div class="leader-right">
             <span class="cp-hdr-m">غیرانتقالی <b>${formatNumber(g.gs.normal)}</b></span>
-            <span class="cp-hdr-m">انتقال تخفیفی <b>${formatNumber(g.gs.transfer)}</b></span>
+            <span class="cp-hdr-m">انتقالی <b>${formatNumber(g.gs.transfer)}</b></span>
             <span class="leader-count">${formatNumber(g.list.length)} نفر</span>
             <span class="leader-total">${formatNumber(g.gs.total)}</span>
           </div>
@@ -7981,7 +7995,7 @@ function issuanceSplitHtml(model) {
   return `${head}
     <div class="list-card"><div class="center-perf-scroll">
       <table class="center-perf-table">
-        <thead><tr><th>کارشناس</th><th>غیرانتقالی</th><th>انتقال تخفیفی</th>${hasUnknown ? '<th>نامشخص</th>' : ''}<th class="is-total">صدور کل</th></tr></thead>
+        <thead><tr><th>کارشناس</th><th>غیرانتقالی</th><th>انتقالی</th>${hasUnknown ? '<th>نامشخص</th>' : ''}<th class="is-total">صدور کل</th></tr></thead>
         <tbody>${body}</tbody>
         <tfoot><tr><td>جمع کل</td><td>${formatNumber(sum.normal)}</td><td>${formatNumber(sum.transfer)}</td>${hasUnknown ? `<td>${formatNumber(sum.unknown)}</td>` : ''}<td>${formatNumber(sum.total)}</td></tr></tfoot>
       </table>
@@ -8071,9 +8085,9 @@ async function exportCenterPerfExcel() {
   try {
     await ensureXlsxLib();
     const hasU = sp.sum.unknown > 0, S = sp.sum;
-    const h3 = ['کارشناس', 'غیرانتقالی', 'انتقال تخفیفی', ...(hasU ? ['نامشخص'] : []), 'صدور کل'];
+    const h3 = ['کارشناس', 'غیرانتقالی', 'انتقالی', ...(hasU ? ['نامشخص'] : []), 'صدور کل'];
     const ws = azkiXlsxSheet({
-      title: 'بررسی عملکرد — صدور کارشناس‌ها: غیرانتقالی / انتقال تخفیفی', bounds,
+      title: 'بررسی عملکرد — صدور کارشناس‌ها: غیرانتقالی / انتقالی', bounds,
       metaLine2: `سنتر: ${centerViewName || ''}   |   کل بازه`,
       headers: h3, rows: sp.groups[0].list.map(x => [x.name, x.normal, x.transfer, ...(hasU ? [x.unknown] : []), x.total]),
       total: ['جمع کل', S.normal, S.transfer, ...(hasU ? [S.unknown] : []), S.total],
@@ -12136,7 +12150,7 @@ html[data-theme="dark"] .disc-pill.done{ color:#5cf0c4; }
   var PENDING = ['در انتظار تخفیف', 'در انتظار کسر از حقوق'];
   var PILL = { 'در انتظار تخفیف': 'wait', 'در انتظار کسر از حقوق': 'ded', 'تخفیف شد - کسر شد': 'done', 'پرداخت شد': 'done' };
   var S = { rows: [], hier: { byId: {}, agentCenter: {}, centerLeaders: {}, centerByKey: {}, agentByKey: {} }, sel: new Set(PENDING), q: '', loading: false, error: null, syncedAt: null,
-            from: null, to: null, calView: { from: [0, 0], to: [0, 0] } };
+            from: null, to: null, calView: { from: [0, 0], to: [0, 0] }, loaded: false };
 
   var esc = function (v) { return window.escHtml(v); };
   var num = function (v) { return faDigits((Number(v) || 0).toLocaleString('en-US')); };
@@ -12542,16 +12556,37 @@ html[data-theme="dark"] .disc-pill.done{ color:#5cf0c4; }
       if (currentUserRole === 'supervisor' || currentUserRole === 'leader' || currentUserRole === 'center') {
         try { S.hier = await loadHier(); } catch (e) { console.warn('[disc] hierarchy', e); }
       }
+      S.loaded = true;
     } catch (e) { S.error = e; S.rows = []; }
     S.loading = false;
     render();
+    refreshBadges();
   }
+
+  /* ---- عدد «خطا» کارت‌های کشویی تب صدور: تعداد خطاهای هر کارشناس (بدون فیلتر وضعیت/تاریخ تب خطا) ---- */
+  var countCache = null;
+  function counts() {
+    if (countCache) return countCache;
+    var m = {};
+    S.rows.forEach(function (r) { var id = effAgentId(r); if (id) m[id] = (m[id] || 0) + 1; });
+    return (countCache = m);
+  }
+  function refreshBadges() {
+    countCache = null;
+    if (!S.loaded) return;
+    var c = counts();
+    document.querySelectorAll('[data-disc-agent]').forEach(function (el) {
+      el.textContent = num(c[el.getAttribute('data-disc-agent')] || 0) + ' خطا';
+    });
+  }
+  function ensure() { if (S.loaded) refreshBadges(); else if (!S.loading) load(); }
+  function countFor(id) { return S.loaded ? (counts()[id] || 0) : 0; }
 
   document.addEventListener('click', function (e) {
     if (e.target.closest('[data-disc="refresh"]')) { load(); return; }
     if (e.target.closest('[data-tab="bugs"],[data-team-tab="team-bugs"],[data-center-tab="center-bugs"],[data-sup-tab="bugs"]')) load();
   });
-  window.DISC = { load: load };
+  window.DISC = { load: load, ensure: ensure, countFor: countFor, refreshBadges: refreshBadges };
 })();
 </script>
 
