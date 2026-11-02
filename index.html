@@ -8511,7 +8511,7 @@ const TR_SUF = ['هایی', 'ترین', 'های', 'ها', 'ان', 'ات', 'تر'
 function trNorm(s) {
   return String(s == null ? '' : s)
     .replace(/[\u064B-\u065F\u0670\u0640]/g, '')
-    .replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/[ۀة]/g, 'ه').replace(/[أإآ]/g, 'ا')
+    .replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/[ۀة]/g, 'ه').replace(/[أإآ]/g, 'ا').replace(/ئ/g, 'ی').replace(/ؤ/g, 'و')
     .replace(/[\u200c\u200f\u200e]/g, ' ')
     .replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d))
     .replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d))
@@ -8658,7 +8658,36 @@ function trIndex(chunks) {
   const idf = {};
   Object.keys(df).forEach(t => { idf[t] = Math.log(1 + (N - df[t] + 0.5) / (df[t] + 0.5)); });
   trainState.idf = idf;
+  trainState.vocab = Object.keys(idf);
   trainState.avgLen = Math.max(total / N, 1);
+}
+
+// ---- غلط املایی: کلمه‌ی سوال که عیناً تو هیچ جای شیت نیست، با نزدیک‌ترین کلمه‌ی شیت (فاصله‌ی ویرایشی ۱ یا ۲) تطبیق داده می‌شه ----
+// کلمه‌های ≤۴ حرفی تصحیح نمی‌شن (احتمال اشتباه بالاست)؛ ۵ تا ۷ حرف: یک غلط؛ ۸ حرف و بیشتر: دو غلط. جابه‌جایی دو حرف کنار هم یک غلط حساب می‌شه.
+function trEditLimit(len) { return len >= 8 ? 2 : len >= 5 ? 1 : 0; }
+function trEditDist(a, b, max) {
+  const la = a.length, lb = b.length;
+  if (Math.abs(la - lb) > max) return max + 1;
+  let pp = null, pr = Array.from({ length: lb + 1 }, (_, j) => j);
+  for (let i = 1; i <= la; i++) {
+    const cur = [i]; let rowMin = i;
+    for (let j = 1; j <= lb; j++) {
+      let v = Math.min(pr[j] + 1, cur[j - 1] + 1, pr[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+      if (pp && i > 1 && j > 1 && a[i - 1] === b[j - 2] && a[i - 2] === b[j - 1]) v = Math.min(v, pp[j - 2] + 1);
+      cur[j] = v; if (v < rowMin) rowMin = v;
+    }
+    if (rowMin > max) return max + 1;
+    pp = pr; pr = cur;
+  }
+  return pr[lb];
+}
+function trFuzzyVariants(t) {
+  const lim = trEditLimit(t.length);
+  if (!lim || trainState.idf[t] || !trainState.vocab) return null;
+  const out = [];
+  trainState.vocab.forEach(v => { const d = trEditDist(t, v, lim); if (d <= lim) out.push([d, v]); });
+  out.sort((x, y) => x[0] - y[0]);
+  return out.length ? out.slice(0, 6).map(x => x[1]) : null;
 }
 
 function trSearch(question, scope) {
@@ -8668,6 +8697,8 @@ function trSearch(question, scope) {
   if (!qTok.length && !single.length) return [];
   const k1 = 1.4, b = 0.75, avg = trainState.avgLen;
   const phrase = words.join(' ');
+  const fz = {};
+  qTok.forEach(t => { const v = trFuzzyVariants(t); if (v) fz[t] = v; });
   const res = [];
   trainState.chunks.forEach(c => {
     if (scope !== '__all' && c.sheet !== scope) return;
@@ -8676,6 +8707,7 @@ function trSearch(question, scope) {
       let tf = c.tf[t] || 0;
       if (!tf && TR_SYN[t]) { for (const sy of TR_SYN[t]) { if (c.tf[sy]) { tf = c.tf[sy] * 0.7; break; } } }
       if (!tf && t.length >= 4) { for (const k in c.tf) { if (k.length >= 4 && (k.startsWith(t) || t.startsWith(k))) { tf = c.tf[k] * 0.6; break; } } }
+      if (!tf && fz[t]) { for (const v of fz[t]) { if (c.tf[v]) { tf = c.tf[v] * 0.5; break; } } }   // غلط املایی
       if (!tf) return;
       hit++;
       const idf = trainState.idf[t] || 1;
@@ -9285,7 +9317,7 @@ async function trPersonal(q) {
 function trCleanQuery(q) {
   const n = trNorm(q);
   const cleaned = n
-    .replace(/^\s*(?:ایتم|آیتم)\s+جدید\s*[:\-–—]?\s*/, '')
+    .replace(/^\s*[آا]?ی?ت?م\s*جدید\s*[:\-–—]?\s*/, '')
     .replace(/(?:\s*[-–—،,:]\s*)?(?:کد|شماره|شناسه)(?:\s+[^\d\s:\-–—]+){0,5}\s*[:#]?\s*\d{5,}/g, ' ')
     .replace(/\d{5,}/g, ' ')
     .replace(/\s*[-–—:،,]+\s*$/, '')
