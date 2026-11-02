@@ -8574,7 +8574,34 @@ function trPushRow(out, sheet, title, fields, hasHeader, row) {
 }
 
 // ساخت تکه‌های دانش از یک برگه: جدول → هر ردیف یک تکه (با عنوان ستون‌ها)، متن آزاد → بلوک‌های پشت‌سرهم
-function trBuildChunks(sheet, grid) {
+// لینکِ داخل سلول‌ها (متن لینک‌دار یا =HYPERLINK) تو خروجی CSV گوگل نمی‌آد و فقط متن نمایشی می‌رسه؛ وب‌اپ Apps Script (تابع links_) آدرس‌ها رو جدا می‌ده:
+//   فرمت فعلی اسکریپت: links = [[ردیف (از ۱)، ستون (از ۰)، آدرس], ...]  ← نسبت به گوشه‌ی بالا-چپِ محدوده‌ی داده (همون شروع خروجی CSV)
+//   فرمت کامل‌تر (اختیاری): links = { o: [ردیفِ اولِ محدوده، ستونِ اول], c: [[ردیف، ستون (از ۱)، آدرس یا [{t, u}]، متن سلول], ...] }
+// تو فرمت کامل، لینک فقط وقتی وصل می‌شه که متنِ همون خونه با متنِ سلولِ لینک‌دار بخونه.
+function trLinkLookup(grid, links) {
+  const map = new Map();
+  if (Array.isArray(links)) {
+    links.forEach(e => {
+      if (!Array.isArray(e) || e.length < 3) return;
+      const r = Number(e[0]) - 1, c = Number(e[1]);
+      if (r >= 0 && c >= 0 && String((grid[r] || [])[c] == null ? '' : grid[r][c]).trim()) map.set(r + ',' + c, e[2]);
+    });
+    return (r, c) => map.get(r + ',' + c) || null;
+  }
+  const cells = links && Array.isArray(links.c) ? links.c : [];
+  const o = links && Array.isArray(links.o) ? links.o : [1, 1];
+  const txt = (r, c) => { const v = (grid[r] || [])[c]; return String(v == null ? '' : v).trim(); };
+  cells.forEach(e => {
+    if (!Array.isArray(e)) return;
+    const [row, col, u, text] = e, want = String(text == null ? '' : text).trim();
+    const hit = [[row - 1, col - 1], [row - o[0], col - o[1]]].find(([r, c]) => r >= 0 && c >= 0 && txt(r, c) === want);
+    if (hit) map.set(hit[0] + ',' + hit[1], u);
+  });
+  return (r, c) => map.get(r + ',' + c) || null;
+}
+
+function trBuildChunks(sheet, grid, links) {
+  const linkAt = trLinkLookup(grid, links);
   const out = [];
   let title = '', header = null, block = [], blockRow = 0;
   const cellsOf = r => (r || []).map((c, i) => ({ i, v: String(c == null ? '' : c).trim() })).filter(x => x.v);
@@ -8590,7 +8617,7 @@ function trBuildChunks(sheet, grid) {
     const next = cellsOf(grid[r + 1]);
     if (cells.length === 1) {
       const v = cells[0].v;
-      if (header) { out.push({ sheet, title, kind: 'row', row: r + 1, fields: [{ k: header[cells[0].i] || '', v }] }); continue; }
+      if (header) { out.push({ sheet, title, kind: 'row', row: r + 1, fields: [{ k: header[cells[0].i] || '', v, u: linkAt(r, cells[0].i) }] }); continue; }
       const prevBlank = r === 0 || !cellsOf(grid[r - 1]).length;
       // خط کوتاهِ حاوی عدد/کد یا جمله‌ی کامل (مثل «کد صندوق 1395») عنوان نیست، یک خبر است و باید قابل جستجو باشد
       const factLike = !next.length && (/[0-9۰-۹]/.test(v) || v.split(/\s+/).length >= 5);
@@ -8607,7 +8634,7 @@ function trBuildChunks(sheet, grid) {
       out.push({ sheet, title, kind: 'row', isHeader: true, row: r + 1, fields: cells.map(c => ({ k: '', v: c.v })) });
       continue;
     }
-    trPushRow(out, sheet, title, cells.map(c => ({ k: header ? (header[c.i] || '') : '', v: c.v })), !!header, r + 1);
+    trPushRow(out, sheet, title, cells.map(c => ({ k: header ? (header[c.i] || '') : '', v: c.v, u: linkAt(r, c.i) })), !!header, r + 1);
   }
   flush();
   return out;
@@ -8670,6 +8697,22 @@ function trSearch(question, scope) {
   return res.slice(0, 4);
 }
 
+function trSafeUrl(u) { u = String(u || '').trim(); return /^(https?:\/\/|mailto:|tel:)/i.test(u) ? u : ''; }
+function trAnchor(text, u) { return `<a href="${escHtml(u)}" target="_blank" rel="noopener noreferrer">${escHtml(text)}</a>`; }
+// محتوای یک سلول: اگه لینک پنهان داشت (f.u) همون متن به‌صورت لینک نشون داده می‌شه؛ وگرنه مثل قبل
+function trFieldHtml(f, qt, focus) {
+  const u = f.u;
+  if (typeof u === 'string') { const su = trSafeUrl(u); if (su) return trAnchor(f.v, su); }
+  else if (Array.isArray(u) && u.length) {   // چند لینک تو یک سلول: متنِ هر لینک همون‌جا لینک می‌شه
+    let html = escHtml(f.v).replace(/\n/g, '<br>');
+    u.forEach(x => {
+      const su = trSafeUrl(x && x.u), tx = x && x.t ? escHtml(String(x.t)) : '';
+      if (su && tx && html.includes(tx)) html = html.replace(tx, () => trAnchor(x.t, su));
+    });
+    return html;
+  }
+  return focus ? trFocusLines(f.v, qt) : trLines(f.v);
+}
 function trLines(v) {
   return escHtml(v).replace(/\n/g, '<br>').replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>');
 }
@@ -8720,14 +8763,14 @@ function trRenderChunk(c, qt, yn) {
     // فقط پاسخ؛ خود سوال دوباره نشان داده نمی‌شود
     const ans = c.fields.filter((f, i) => i !== c.qi);
     const multi = ans.length > 1;
-    return src + ans.map(f => `<div class="tr-ans">${multi && f.k ? `<b class="tr-ans-k">${escHtml(f.k)}:</b> ` : ''}${trLines(f.v)}</div>`).join('');
+    return src + ans.map(f => `<div class="tr-ans">${multi && f.k ? `<b class="tr-ans-k">${escHtml(f.k)}:</b> ` : ''}${trFieldHtml(f)}</div>`).join('');
   }
   if (c.kind === 'row' && c.fields.some(f => f.k)) {
-    return src + '<dl class="tr-dl">' + c.fields.map(f => `<div><dt>${escHtml(f.k || '—')}</dt><dd>${trFocusLines(f.v, qt)}</dd></div>`).join('') + '</dl>';
+    return src + '<dl class="tr-dl">' + c.fields.map(f => `<div><dt>${escHtml(f.k || '—')}</dt><dd>${trFieldHtml(f, qt, true)}</dd></div>`).join('') + '</dl>';
   }
   if (c.kind === 'row') {
     const [first, ...rest] = c.fields;
-    return src + `<div class="tr-main">${trFocusLines(first.v, qt)}</div>` + rest.map(f => `<div>${trFocusLines(f.v, qt)}</div>`).join('');
+    return src + `<div class="tr-main">${trFieldHtml(first, qt, true)}</div>` + rest.map(f => `<div>${trFieldHtml(f, qt, true)}</div>`).join('');
   }
   if (qt && qt.length && c.fields.length > 3) {
     // متن بلند: فقط خط‌هایی که بیشترین تطابق با سوال را دارند نشان بده، بقیه‌ی متن در «نمایش بقیه» بماند
@@ -8739,7 +8782,7 @@ function trRenderChunk(c, qt, yn) {
         (rest.length ? `<details class="tr-more"><summary>نمایش بقیه‌ی متن این بخش</summary>${rest.map(f => `<div class="tr-alt">${trLines(f.v)}</div>`).join('')}</details>` : '');
     }
   }
-  return src + c.fields.map(f => `<div>${trFocusLines(f.v, qt)}</div>`).join('');
+  return src + c.fields.map(f => `<div>${trFieldHtml(f, qt, true)}</div>`).join('');
 }
 
 // ---- لاگ سوال و جواب‌ها در گوگل شیت (از طریق وب‌اپ Apps Script؛ فایل apps-script-training-log.gs) ----
@@ -8873,7 +8916,7 @@ function trShowChunk(id) {
 function trApplyData(sheetsData, failed, fetchedAt) {
   const chunks = [], names = [];
   sheetsData.forEach(s => {
-    const part = trBuildChunks(s.name, trParseCsv(s.csv));
+    const part = trBuildChunks(s.name, trParseCsv(s.csv), s.links);
     if (part.length) { names.push(s.name); chunks.push(...part); }
   });
   chunks.forEach((c, i) => { c.id = i; });
@@ -8882,6 +8925,8 @@ function trApplyData(sheetsData, failed, fetchedAt) {
   trRenderTree(); trRenderStatus();
 }
 
+// امضای یک برگه برای تشخیص تغییر: متن + آدرس لینک‌های داخل سلول‌ها
+function trSheetSig(s) { return s.name + '\u0001' + s.csv + '\u0003' + (s.links ? JSON.stringify(s.links) : ''); }
 let trSheetList = null, trSheetListAt = 0;
 async function trListSheets() {
   if (trSheetList && Date.now() - trSheetListAt < 60000) return trSheetList;   // فهرست برگه‌ها حداکثر هر ۶۰ ثانیه یک‌بار پرسیده می‌شود
@@ -8903,7 +8948,7 @@ async function trListSheets() {
 async function trFetchAll() {
   let list;
   try { list = await trListSheets(); } catch (e) { return { ok: [], failed: [], firstErr: new Error('فهرست برگه‌ها از اسکریپت گرفته نشد (' + (e.message || e) + ')') }; }
-  const res = await Promise.allSettled(list.map(sh => trFetchSheet(sh.name, sh.gid).then(csv => ({ name: sh.name, csv }))));
+  const res = await Promise.allSettled(list.map(sh => trFetchSheet(sh.name, sh.gid).then(csv => ({ name: sh.name, csv, links: sh.links || null }))));
   const ok = [], failed = []; let firstErr = null;
   res.forEach((r, i) => {
     if (r.status === 'fulfilled') ok.push(r.value);
@@ -8920,7 +8965,7 @@ async function trLoad() {
       let cache = null;
       try { cache = JSON.parse(localStorage.getItem(TRAIN_CACHE_KEY) || 'null'); } catch (e) { }
       if (cache && cache.sheets && cache.sheets.length && Date.now() - (cache.t || 0) < TRAIN_CACHE_TTL) {   // کش قدیمی‌تر از TTL استفاده نمی‌شود
-        trSignature = cache.sheets.map(s => s.name + '\u0001' + s.csv).join('\u0002');
+        trSignature = cache.sheets.map(trSheetSig).join('\u0002');
         trApplyData(cache.sheets, cache.failed || [], cache.t);
       } else trTreeMsg('در حال دریافت…');
     }
@@ -8929,7 +8974,7 @@ async function trLoad() {
       trTreeMsg('دریافت ناموفق: ' + (r.firstErr ? r.firstErr.message : 'نامشخص'));
       return;
     }
-    const sig = r.ok.map(s => s.name + '\u0001' + s.csv).join('\u0002');
+    const sig = r.ok.map(trSheetSig).join('\u0002');
     const now = Date.now();
     if (sig !== trSignature || !trainState.loaded) {
       trSignature = sig;
