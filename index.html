@@ -2325,31 +2325,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
     <div class="panel" id="panel-center-perf">
       <div class="period-label" id="center-perf-label"></div>
-      <div class="summary-row">
-        <div class="summary-card">
-          <div class="label">مجموع صدور سنتر</div>
-          <div class="value" id="center-perf-total">—</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">تعداد شرکت‌های بیمه</div>
-          <div class="value" id="center-perf-companies">—</div>
-        </div>
-        <div class="summary-card">
-          <div class="label">بیشترین صدور</div>
-          <div class="value" id="center-perf-top" style="font-size:20px;">—</div>
-        </div>
-      </div>
-
-      <div class="cp-split-wrap" id="center-perf-split" style="margin-bottom:14px;">
-        <div class="loading-state">در حال بارگذاری...</div>
-      </div>
-
-      <div class="sm-stabs" id="center-perf-gran" style="margin-bottom:12px;">
-        <button type="button" class="sm-stab active" data-gran="daily">روزانه</button>
-        <button type="button" class="sm-stab" data-gran="weekly">هفتگی</button>
-        <button type="button" class="sm-stab" data-gran="monthly">ماهانه</button>
-      </div>
-
       <div class="azki-payroll-actions">
         <button type="button" class="sm-btn azki-export-btn" id="center-perf-export">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M4 21h16"/></svg>
@@ -2357,11 +2332,9 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         </button>
       </div>
 
-      <div class="list-card" id="center-perf-share">
+      <div class="cp-split-wrap" id="center-perf-split" style="margin-bottom:14px;">
         <div class="loading-state">در حال بارگذاری...</div>
       </div>
-      <div class="list-card" id="center-perf-table" style="margin-top:14px;"></div>
-      <div class="list-card" id="center-perf-agents" style="margin-top:14px;"></div>
     </div>
 
     <div class="panel" id="panel-center-training"></div>
@@ -8162,6 +8135,8 @@ function issuanceSplitHtml(model) {
 function renderCenterPerfSplit() {
   const el = document.getElementById('center-perf-split');
   if (!el) return;
+  const lbEl = document.getElementById('center-perf-label'), bnd = centerPayrollBounds();
+  if (lbEl && bnd) lbEl.textContent = `${centerViewName ? `سنتر: ${centerViewName} — ` : ''}بازه‌ی انتخابی: ${faDigits(bnd.startLabel)} تا ${faDigits(bnd.endLabel)}`;
   const rowsByUser = {};
   centerTargetRowsAll.forEach(r => { (rowsByUser[r.agent_id] = rowsByUser[r.agent_id] || []).push(r); });
   const agents = centerNormalAgentsAll.filter(m => m.status !== 'disabled' || (rowsByUser[m.id] || []).length > 0);
@@ -8221,178 +8196,33 @@ function buildCenterPerfModel(rows, gran) {
   return { periods, companies, compTotals: comp, otherTotal, grand };
 }
 
-async function loadCenterPerf() {
-  const seq = ++centerPerfState.seq;
-  const bounds = centerPayrollBounds();
-  const shareEl = document.getElementById('center-perf-share');
-  const tableEl = document.getElementById('center-perf-table');
-  if (!bounds || !centerViewId) { shareEl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>'; return; }
-  centerPerfState.loaded = false;
-  const ownName = centerViewName || '';
-  document.getElementById('center-perf-label').textContent =
-    `${ownName ? `سنتر: ${ownName} — ` : ''}بازه‌ی انتخابی: ${faDigits(bounds.startLabel)} تا ${faDigits(bounds.endLabel)}`;
-  shareEl.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
-  tableEl.innerHTML = '';
-  ['total', 'companies', 'top'].forEach(k => { document.getElementById('center-perf-' + k).textContent = '—'; });
-
-  try {
-    const [res, otherKeys, agRes] = await Promise.all([
-      fetchAzkiBreakdownRows([...AZKI_COMPANIES, 'کل'], bounds),
-      centerGetOtherKeys().catch(() => []),
-      fetchCenterAgentCompanyRows(bounds).catch(e => ({ data: null, error: { message: e.message } })),
-    ]);
-    if (seq !== centerPerfState.seq) return;
-    if (res.error) throw new Error(res.error.message);
-    const matched = centerPayrollMatchRows(res.data || [], ownName, otherKeys);
-    centerPerfState.rows = matched;
-    centerPerfState.agentRows = agRes.error ? null : centerPayrollMatchRows(agRes.data || [], ownName, otherKeys);
-    centerPerfState.agentErr = agRes.error ? agRes.error.message : '';
-    centerPerfState.bounds = bounds;
-    centerPerfState.name = ownName;
-    centerPerfState.loaded = true;
-    renderCenterPerf();
-  } catch (e) {
-    if (seq !== centerPerfState.seq) return;
-    shareEl.innerHTML = `<div class="empty-state">خطا در دریافت اطلاعات: ${escHtml(e.message)}</div>`;
-  }
-}
-
-function renderCenterPerfAgents() {
-  const st = centerPerfState, el = document.getElementById('center-perf-agents');
-  if (!el) return;
-  if (st.agentRows === null) {
-    st.agentModel = null;
-    el.innerHTML = '<div class="empty-state">تفکیک کارشناسان هنوز در دسترس نیست' + (st.agentErr ? ' (' + escHtml(st.agentErr) + ')' : '') + '</div>';
-    return;
-  }
-  const am = buildCenterPerfAgentModel(st.agentRows);
-  st.agentModel = am;
-  if (!am.agents.length) { el.innerHTML = '<div class="empty-state">برای این بازه صدور کارشناسان سنتر شما به تفکیک شرکت ثبت نشده است.</div>'; return; }
-  const th = am.companies.map(n => `<th>${escHtml(n)}</th>`).join('');
-  const body = am.agents.map(a => `<tr><td>${escHtml(a.name)}</td>${am.companies.map(n => { const v = a.by[n] || 0; return `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`; }).join('')}<td class="is-total">${formatNumber(a.total)}</td></tr>`).join('');
-  const foot = am.companies.map(n => `<td>${formatNumber(am.compTotals[n])}</td>`).join('');
-  el.innerHTML = `
-    <div class="azki-group-title" style="font-weight:800;margin-bottom:10px">صدور کارشناس‌ها به تفکیک شرکت بیمه <small style="font-weight:500;color:var(--ink-soft)">(کل بازه‌ی انتخابی)</small></div>
-    <div class="center-perf-scroll">
-      <table class="center-perf-table">
-        <thead><tr><th>کارشناس</th>${th}<th class="is-total">جمع</th></tr></thead>
-        <tbody>${body}</tbody>
-        <tfoot><tr><td>جمع کل</td>${foot}<td>${formatNumber(am.grand)}</td></tr></tfoot>
-      </table>
-    </div>`;
-}
-
-function renderCenterPerf() {
-  const st = centerPerfState;
-  const shareEl = document.getElementById('center-perf-share');
-  const tableEl = document.getElementById('center-perf-table');
+// تب «بررسی عملکرد» سنتر: فقط جدول غیرانتقالی/انتقال تخفیفی؛ از همون داده‌ی تب «صدور» (centerTargetRowsAll) ساخته می‌شه و درخواست جدا نداره
+function loadCenterPerf() {
+  centerPerfState.loaded = true;
   renderCenterPerfSplit();
-  if (!st.loaded) return;
-  const m = buildCenterPerfModel(st.rows, st.gran);
-  st.model = m;
-
-  document.getElementById('center-perf-total').textContent = formatNumber(m.grand);
-  document.getElementById('center-perf-companies').textContent = formatNumber(m.companies.length);
-  const topName = m.companies[0];
-  document.getElementById('center-perf-top').textContent = topName ? `${topName} (${formatNumber(m.compTotals[topName])})` : '—';
-
-  renderCenterPerfAgents();
-  if (!m.periods.length || !m.grand) {
-    shareEl.innerHTML = '<div class="empty-state">برای این بازه صدوری برای سنتر شما ثبت نشده است.</div>';
-    tableEl.innerHTML = '';
-    return;
-  }
-
-  // سهم هر شرکت از کل صدور
-  const shareRows = m.companies.map(n => ({ name: n, count: m.compTotals[n] }));
-  if (m.otherTotal > 0) shareRows.push({ name: 'سایر شرکت‌ها', count: m.otherTotal });
-  const maxCount = Math.max(...shareRows.map(r => r.count), 1);
-  shareEl.innerHTML = shareRows.map(r => {
-    const pct = m.grand ? Math.round(r.count / m.grand * 1000) / 10 : 0;
-    return `
-    <div class="row-item center-perf-share">
-      <div class="pay-name">${escHtml(r.name)}</div>
-      <div class="center-perf-bar"><i style="width:${Math.max(2, r.count / maxCount * 100)}%"></i></div>
-      <div class="row-badge">${formatNumber(r.count)}<span class="center-perf-pct">${faDigits(pct)}٪</span></div>
-    </div>`;
-  }).join('');
-
-  // جدول دوره × شرکت
-  const cols = m.companies.slice();
-  const hasOther = m.otherTotal > 0;
-  const th = cols.map(n => `<th>${escHtml(n)}</th>`).join('') + (hasOther ? '<th>سایر</th>' : '');
-  const body = m.periods.map(p => {
-    const cells = cols.map(n => { const v = p.by[n] || 0; return `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`; }).join('')
-      + (hasOther ? `<td class="${p.other ? '' : 'is-zero'}">${p.other ? formatNumber(p.other) : '—'}</td>` : '');
-    return `<tr><td>${escHtml(p.label)}</td>${cells}<td class="is-total">${formatNumber(p.total)}</td></tr>`;
-  }).join('');
-  const foot = cols.map(n => `<td>${formatNumber(m.compTotals[n])}</td>`).join('')
-    + (hasOther ? `<td>${formatNumber(m.otherTotal)}</td>` : '');
-  tableEl.innerHTML = `
-    <div class="center-perf-scroll">
-      <table class="center-perf-table">
-        <thead><tr><th>${st.gran === 'daily' ? 'تاریخ' : (st.gran === 'weekly' ? 'هفته' : 'ماه')}</th>${th}<th class="is-total">جمع</th></tr></thead>
-        <tbody>${body}</tbody>
-        <tfoot><tr><td>جمع کل</td>${foot}<td>${formatNumber(m.grand)}</td></tr></tfoot>
-      </table>
-    </div>`;
 }
-
-document.querySelectorAll('#center-perf-gran .sm-stab').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('#center-perf-gran .sm-stab').forEach(b => b.classList.toggle('active', b === btn));
-    centerPerfState.gran = btn.dataset.gran;
-    if (centerPerfState.loaded) renderCenterPerf();
-  });
-});
 
 async function exportCenterPerfExcel() {
-  const st = centerPerfState, m = st.model;
+  const sp = centerPerfState.split;
   const btn = document.getElementById('center-perf-export');
-  if (!st.loaded || !m || !m.periods.length) { alert('اطلاعاتی برای خروجی گرفتن وجود نداره.'); return; }
+  if (!sp || !sp.groups.length || !sp.groups[0].list.length) { alert('اطلاعاتی برای خروجی گرفتن وجود نداره.'); return; }
+  const bounds = centerPayrollBounds();
+  if (!bounds) { alert('بازه‌ی تاریخ مشخص نیست.'); return; }
   const originalHtml = btn.innerHTML;
   btn.disabled = true;
   btn.textContent = 'در حال آماده‌سازی...';
   try {
     await ensureXlsxLib();
-    const cols = m.companies.slice();
-    const hasOther = m.otherTotal > 0;
-    const headers = [st.gran === 'daily' ? 'تاریخ' : (st.gran === 'weekly' ? 'هفته' : 'ماه'), ...cols, ...(hasOther ? ['سایر'] : []), 'جمع'];
-    const rows = m.periods.map(p => [p.label, ...cols.map(n => p.by[n] || 0), ...(hasOther ? [p.other] : []), p.total]);
-    const total = ['جمع کل', ...cols.map(n => m.compTotals[n]), ...(hasOther ? [m.otherTotal] : []), m.grand];
-    const n = headers.length;
+    const hasU = sp.sum.unknown > 0, S = sp.sum;
+    const h3 = ['کارشناس', 'غیرانتقالی', 'انتقال تخفیفی', ...(hasU ? ['نامشخص'] : []), 'صدور کل'];
     const ws = azkiXlsxSheet({
-      title: 'بررسی عملکرد — صدور به تفکیک شرکت بیمه', bounds: st.bounds,
-      metaLine2: `سنتر: ${st.name || ''}   |   نمایش: ${{ daily: 'روزانه', weekly: 'هفتگی', monthly: 'ماهانه' }[st.gran]}`,
-      headers, rows, total,
-      widths: headers.map((h, i) => i === 0 ? 24 : 14), fmts: headers.map((h, i) => i === 0 ? 'text' : 'int'),
+      title: 'بررسی عملکرد — صدور کارشناس‌ها: غیرانتقالی / انتقال تخفیفی', bounds,
+      metaLine2: `سنتر: ${centerViewName || ''}   |   کل بازه`,
+      headers: h3, rows: sp.groups[0].list.map(x => [x.name, x.normal, x.transfer, ...(hasU ? [x.unknown] : []), x.total]),
+      total: ['جمع کل', S.normal, S.transfer, ...(hasU ? [S.unknown] : []), S.total],
+      widths: h3.map((h, i) => i === 0 ? 24 : 14), fmts: h3.map((h, i) => i === 0 ? 'text' : 'int'),
     });
-    const sheets = [['بررسی عملکرد', ws]];
-    const am = st.agentModel;
-    if (am && am.agents.length) {
-      const h2 = ['کارشناس', ...am.companies, 'جمع'];
-      const ws2 = azkiXlsxSheet({
-        title: 'بررسی عملکرد — صدور کارشناس‌ها به تفکیک شرکت بیمه', bounds: st.bounds,
-        metaLine2: `سنتر: ${st.name || ''}   |   کل بازه`,
-        headers: h2, rows: am.agents.map(a => [a.name, ...am.companies.map(n => a.by[n] || 0), a.total]),
-        total: ['جمع کل', ...am.companies.map(n => am.compTotals[n]), am.grand],
-        widths: h2.map((h, i) => i === 0 ? 24 : 14), fmts: h2.map((h, i) => i === 0 ? 'text' : 'int'),
-      });
-      sheets.push(['به تفکیک کارشناس', ws2]);
-    }
-    const sp = st.split;
-    if (sp && sp.groups.length && sp.groups[0].list.length) {
-      const hasU = sp.sum.unknown > 0, S = sp.sum;
-      const h3 = ['کارشناس', 'غیرانتقالی', 'انتقال تخفیفی', ...(hasU ? ['نامشخص'] : []), 'صدور کل'];
-      sheets.push(['انتقالی و غیرانتقالی', azkiXlsxSheet({
-        title: 'بررسی عملکرد — صدور کارشناس‌ها: غیرانتقالی / انتقال تخفیفی', bounds: st.bounds,
-        metaLine2: `سنتر: ${st.name || ''}   |   کل بازه`,
-        headers: h3, rows: sp.groups[0].list.map(x => [x.name, x.normal, x.transfer, ...(hasU ? [x.unknown] : []), x.total]),
-        total: ['جمع کل', S.normal, S.transfer, ...(hasU ? [S.unknown] : []), S.total],
-        widths: h3.map((h, i) => i === 0 ? 24 : 14), fmts: h3.map((h, i) => i === 0 ? 'text' : 'int'),
-      })]);
-    }
-    azkiXlsxSave(sheets, 'بررسی-عملکرد', st.bounds);
+    azkiXlsxSave([['انتقالی و غیرانتقالی', ws]], 'بررسی-عملکرد', bounds);
   } catch (e) {
     alert('خروجی اکسل با خطا مواجه شد: ' + e.message);
   } finally {
