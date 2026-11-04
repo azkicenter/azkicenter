@@ -2057,6 +2057,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         خطای صدور
         <span class="tab-dot bugs-dot" id="bugs-dot"></span>
       </button>
+      <button class="tab-btn" data-tab="agent-perf" type="button">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+        بررسی عملکرد
+      </button>
       <button class="tab-btn" data-tab="agent-attendance" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4"/></svg>
         حضور و غیاب
@@ -2698,6 +2702,10 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
 
     </div>
 
+    <div class="panel" id="panel-agent-perf">
+      <div class="period-label" id="agent-perf-label"></div>
+      <div id="agent-perf-body"><div class="loading-state">در حال بارگذاری...</div></div>
+    </div>
     <div class="panel" id="panel-agent-attendance"></div>
     <div class="panel" id="panel-training">
       <div class="tr-layout">
@@ -2818,8 +2826,16 @@ document.querySelectorAll('#main-tabs .tab-btn').forEach(btn => {
     document.getElementById('panel-bugs').classList.remove('active');
     document.getElementById('panel-agent-attendance').classList.remove('active');
     document.getElementById('panel-training').classList.remove('active');
+    document.getElementById('panel-agent-perf').classList.remove('active');
     btn.classList.add('active');
     document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+    // فیلتر تاریخ «تارگت روزانه» برای تب «بررسی عملکرد» هم استفاده می‌شه؛ همون المنت بین دو پنل جابه‌جا می‌شه
+    const agentFilterEl = document.getElementById('agent-filter');
+    if (agentFilterEl && (btn.dataset.tab === 'agent-perf' || btn.dataset.tab === 'targets')) {
+      const dest = document.getElementById(btn.dataset.tab === 'agent-perf' ? 'panel-agent-perf' : 'panel-targets');
+      if (dest && agentFilterEl.parentNode !== dest) dest.insertBefore(agentFilterEl, dest.firstChild);
+    }
+    if (btn.dataset.tab === 'agent-perf') renderAgentPerf();
     if (btn.dataset.tab === 'agent-attendance') attOpen(document.getElementById('panel-agent-attendance'));
     if (btn.dataset.tab === 'training') { trMount(document.getElementById('panel-training')); trainingOpen(); }
     if (btn.dataset.tab === 'bugs') {
@@ -8304,11 +8320,48 @@ function agentFmtOct(min) {
   return `${base} (${faDigits(h)} ساعت${m ? ' و ' + faDigits(m) + ' دقیقه' : ''})`;
 }
 
+// تب «بررسی عملکرد» کارشناس: صدور خود کارشناس به تفکیک غیرانتقالی / انتقال تخفیفی؛ از همون داده‌ی تب «تارگت روزانه» (همون فیلتر تاریخ)
+const agentPerfState = { rows: null, err: '', label: '' };
+function renderAgentPerf() {
+  const el = document.getElementById('agent-perf-body');
+  const lb = document.getElementById('agent-perf-label');
+  if (!el) return;
+  if (lb) lb.textContent = agentPerfState.label;
+  if (agentPerfState.rows == null) { el.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>'; return; }
+  if (agentPerfState.err) { el.innerHTML = `<div class="empty-state">خطا در دریافت اطلاعات: ${escHtml(agentPerfState.err)}</div>`; return; }
+  const rows = sortRowsByDateAsc(agentPerfState.rows);
+  if (!rows.length) { el.innerHTML = '<div class="empty-state">هنوز اطلاعاتی برای این بازه ثبت نشده است</div>'; return; }
+  const sum = issuanceSplitOf(rows);
+  const hasUnknown = sum.unknown > 0;
+  const card = (label, v) => `<div class="summary-card"><div class="label">${label}</div><div class="value">${formatNumber(v)}</div></div>`;
+  const pct = sum.total > 0 ? (sum.transfer / sum.total) * 100 : null;
+  const pctCard = `<div class="summary-card"><div class="label">درصد سفارشات انتقالی</div><div class="value">${pct == null ? '—' : formatNumber(pct) + '٪'}</div></div>`;
+  const cell = v => `<td class="${v ? '' : 'is-zero'}">${v ? formatNumber(v) : '—'}</td>`;
+  const body = rows.map(r => {
+    const x = issuanceSplitOf([r]);
+    return `<tr><td>${toJalaliDisplay(r.report_date_jalali)}</td>${cell(x.normal)}${cell(x.transfer)}${hasUnknown ? cell(x.unknown) : ''}<td class="is-total">${formatNumber(x.total)}</td></tr>`;
+  }).join('');
+  const note = hasUnknown ? `<div class="cp-note">برای ${formatNumber(sum.unknown)} صدور، تقسیم انتقالی هنوز ثبت نشده (روزهایی که قبل از فعال‌شدن این گزارش بوده‌اند). این‌ها در ستون «نامشخص» جدا شده‌اند تا جمع هر ردیف همچنان برابر صدور کل باشد.</div>` : '';
+  el.innerHTML = `
+    <div class="cp-split-title">تعداد صدور من: غیرانتقالی و انتقالی <small>(کل بازه‌ی انتخابی)</small></div>
+    <div class="summary-row">${card('صدور کل', sum.total)}${card('غیرانتقالی', sum.normal)}${card('انتقالی', sum.transfer)}${pctCard}</div>
+    <div class="list-card"><div class="center-perf-scroll">
+      <table class="center-perf-table">
+        <thead><tr><th>تاریخ</th><th>غیرانتقالی</th><th>انتقالی</th>${hasUnknown ? '<th>نامشخص</th>' : ''}<th class="is-total">صدور کل</th></tr></thead>
+        <tbody>${body}</tbody>
+        <tfoot><tr><td>جمع کل</td><td>${formatNumber(sum.normal)}</td><td>${formatNumber(sum.transfer)}</td>${hasUnknown ? `<td>${formatNumber(sum.unknown)}</td>` : ''}<td>${formatNumber(sum.total)}</td></tr></tfoot>
+      </table>
+    </div></div>
+    ${note}`;
+}
+
 async function loadTargets(userId) {
   agentFilterUserId = userId;
   const token = ++agentLoadToken;
   const container = document.getElementById('targets-list');
   const period = agentPeriod();
+  agentPerfState.label = faDigits(`${agentFilter.custom ? 'بازه‌ی نمایش' : 'بازه‌ی جاری'}: ${period.startLabel} تا ${period.endLabel}`);
+  agentPerfState.rows = null; agentPerfState.err = '';
   document.getElementById('period-label').textContent = faDigits(`${agentFilter.custom ? 'بازه‌ی نمایش' : 'بازه‌ی جاری'}: ${period.startLabel} تا ${period.endLabel}`);
   const avgVal = document.getElementById('agent-avg-val');
   const avgSub = document.getElementById('agent-avg-sub');
@@ -8323,6 +8376,9 @@ async function loadTargets(userId) {
 
   if (token !== agentLoadToken) return;
   currentPeriodKey = period.startLabel;
+  agentPerfState.rows = error ? [] : (data || []);
+  agentPerfState.err = error ? error.message : '';
+  renderAgentPerf();
 
   if (error) {
     container.innerHTML = `<div class="empty-state">خطا در دریافت اطلاعات: ${escHtml(error.message)}</div>`;
@@ -11409,7 +11465,7 @@ async function permSettingsRender(host) {
 // ذخیره در جدول agent_tab_settings از طریق توابع agent_tab_settings_get/set (فایل agent_tab_settings.sql)
 // کلیدها همان data-tab دکمه‌های #main-tabs هستند
 // ============================================================
-const AGENT_TAB_DEFS = [['targets', 'تارگت روزانه'], ['bugs', 'خطای صدور'], ['agent-attendance', 'حضور و غیاب'], ['training', 'آموزش']];
+const AGENT_TAB_DEFS = [['targets', 'تارگت روزانه'], ['bugs', 'خطای صدور'], ['agent-perf', 'بررسی عملکرد'], ['agent-attendance', 'حضور و غیاب'], ['training', 'آموزش']];
 
 function applyAgentHiddenTabs(hiddenList) {
   const hidden = new Set(hiddenList || []);
