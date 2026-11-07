@@ -2783,7 +2783,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261107-2';
+const APP_BUILD = '20261107-3';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -11467,7 +11467,6 @@ async function centerSettingsRender(host) {
     const silent = !manual;
     if (silent) window.__silentRender = (window.__silentRender || 0) + 1;
     try {
-      if (manual && window.__clearReportCache) window.__clearReportCache();
       if (typeof loadLastUpdate === 'function') { try { await loadLastUpdate(); } catch (e) { } }
       // داده‌ی اصلی فقط وقتی n8n آپدیت کرده عوض می‌شه؛ پس تا وقتی «آخرین آپدیت» عوض نشده رفرش خودکار
       // داده‌ی سنگین رو دوباره نمی‌گیره (برای اطمینان حداکثر هر ۱ ساعت یک‌بار). رفرش دستی همیشه می‌گیره.
