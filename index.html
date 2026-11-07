@@ -2783,7 +2783,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261107-3';
+const APP_BUILD = '20261107-4';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -6272,6 +6272,7 @@ async function loadLastUpdate() {
     targets: (data && data.updated_label) || null,
     reports: (data && data.reports_updated_label) || null
   };
+  if (!error) window.__luCheckedAt = Date.now();
   renderLastUpdateBar();
 }
 
@@ -11489,9 +11490,21 @@ async function centerSettingsRender(host) {
     }
   }
 
-  setInterval(() => { if (document.visibilityState === 'visible' && Date.now() - last >= 300000) softRefresh(false); }, 60000);
+  // n8n ساعتی و حوالی دقیقه‌ی ۳۷ تا ۴۰ (UTC) داده می‌ریزه؛ «آخرین آپدیت» فقط تو بازه‌ی دقیقه‌ی ۲۵ تا ۵۲ (UTC) هر ساعت
+  // (هر ~۲ دقیقه) چک می‌شه. بیرون از بازه فقط وقتی چک می‌کنیم که از آخرین پایان بازه تا حالا چکی نشده باشه
+  // (مثلاً تب خواب بوده) تا آپدیت از دست نره.
+  function luInWindow(now) { const m = new Date(now).getUTCMinutes(); return m >= 25 && m <= 52; }
+  function luNeedCheck() {
+    const now = Date.now();
+    if (!window.__luCheckedAt) return true;
+    if (luInWindow(now)) return now - window.__luCheckedAt >= 110000;
+    const e = new Date(now); e.setUTCMinutes(52, 0, 0);
+    if (e.getTime() > now) e.setUTCHours(e.getUTCHours() - 1);
+    return window.__luCheckedAt < e.getTime();
+  }
+  setInterval(() => { if (document.visibilityState === 'visible' && luNeedCheck()) softRefresh(false); }, 30000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && Date.now() - last >= 300000) softRefresh(false);
+    if (document.visibilityState === 'visible' && luNeedCheck()) softRefresh(false);
   });
 })();
 </script>
