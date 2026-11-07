@@ -2161,11 +2161,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
         محاسبه حقوق
       </button>
-      <button class="tab-btn" data-team-tab="kanban" type="button">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/></svg>
-        تسک‌ها
-        <span class="tab-dot kb-dot"></span>
-      </button>
       <button class="tab-btn" data-team-tab="attendance" type="button">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4"/></svg>
         حضور و غیاب
@@ -2256,7 +2251,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       <div class="period-label" id="team-perf-label"></div>
       <div class="cp-split-wrap" id="team-perf-list"><div class="loading-state">در حال بارگذاری...</div></div>
     </div>
-    <div class="panel" id="panel-kanban"></div>
     <div class="panel" id="panel-attendance"></div>
     <div class="panel" id="panel-users"></div>
     <div class="panel" id="panel-team-training"></div>
@@ -2416,11 +2410,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
         <button class="tab-btn" data-sup-tab="azki-payroll" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M2 10h20"/><path d="M6 15h4"/></svg>
           محاسبه حقوق
-        </button>
-        <button class="tab-btn" data-sup-tab="kanban" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="10" rx="1.5"/><rect x="17" y="4" width="4" height="13" rx="1.5"/></svg>
-          تسک‌ها
-        <span class="tab-dot kb-dot"></span>
         </button>
         <button class="tab-btn" data-sup-tab="attendance" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M8 3v4M16 3v4M3 10h18M9 15l2 2 4-4"/></svg>
@@ -2694,7 +2683,6 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       </div>
 
       <div id="sup-view-bugs" class="disc-host" style="display:none;"></div>
-      <div id="sup-view-kanban" style="display:none;"></div>
       <div id="sup-view-attendance" style="display:none;"></div>
       <div id="sup-view-users" style="display:none;"></div>
       <div id="sup-view-run-history" style="display:none;"></div>
@@ -2937,7 +2925,7 @@ function teamShowTab(tab) {
   }
   document.getElementById('panel-team').classList.remove('active');
   document.getElementById('panel-team-bugs').classList.remove('active'); document.getElementById('panel-team-perf').classList.remove('active');
-  ['panel-azki-compare', 'panel-azki-oct', 'panel-azki-chart', 'panel-azki-shifts', 'panel-azki-active', 'panel-azki-payroll', 'panel-kanban', 'panel-attendance', 'panel-users', 'panel-team-training'].forEach(id => {
+  ['panel-azki-compare', 'panel-azki-oct', 'panel-azki-chart', 'panel-azki-shifts', 'panel-azki-active', 'panel-azki-payroll', 'panel-attendance', 'panel-users', 'panel-team-training'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.classList.remove('active');
   });
@@ -2965,7 +2953,6 @@ function teamShowTab(tab) {
   if (tab === 'azki-shifts' && !azkiState.shifts.loaded) loadAzkiShiftsView();
   if (tab === 'azki-active' && !azkiState.activeStatus.loaded) loadAzkiActiveStatusView();
   if (tab === 'azki-payroll' && !azkiState.payroll.loaded) loadAzkiPayrollView();
-  if (tab === 'kanban') kbOpen(document.getElementById('panel-kanban'));
   if (tab === 'attendance') attOpen(document.getElementById('panel-attendance'));
   if (tab === 'users') usersOpen(document.getElementById('panel-users'));
   if (tab === 'training') { trMount(panelEl); trainingOpen(); }
@@ -3399,7 +3386,6 @@ document.querySelectorAll('#center-tabs .tab-btn').forEach(btn => {
     $('sup-view-azki-payroll').style.display = which === 'azki-payroll' ? '' : 'none';
     $('sup-view-azki-active').style.display = which === 'azki-active' ? '' : 'none';
     $('sup-view-bugs').style.display = which === 'bugs' ? '' : 'none';
-    $('sup-view-kanban').style.display = which === 'kanban' ? '' : 'none';
     $('sup-view-attendance').style.display = which === 'attendance' ? '' : 'none';
     $('sup-view-users').style.display = which === 'users' ? '' : 'none';
     $('sup-view-run-history').style.display = which === 'run-history' ? '' : 'none';
@@ -3418,7 +3404,6 @@ document.querySelectorAll('#center-tabs .tab-btn').forEach(btn => {
     azkiSyncFilterForTab(which);
     if (which === 'azki-payroll' && !azkiState.payroll.loaded) loadAzkiPayrollView();
     if (which === 'azki-active' && !azkiState.activeStatus.loaded) loadAzkiActiveStatusView();
-    if (which === 'kanban') kbOpen($('sup-view-kanban'));
     if (which === 'attendance') attOpen($('sup-view-attendance'));
     if (which === 'users') usersOpen($('sup-view-users'));
     if (which === 'run-history') runHistoryOpen($('sup-view-run-history'));
@@ -9812,308 +9797,6 @@ window.silentRun = async function (fn) {
 .kb-ppl-empty{text-align:center;color:var(--ink-faint);font-size:12px;padding:12px 0}
 @media(max-width:760px){.kb-board{grid-template-columns:repeat(5,80vw)}}
 </style>
-<script>
-(function(){
-const T='kanban_tasks',COLS=[['todo','To Do','#7C5CE0'],['doing','In Progress','#17A9FF'],['review','In Review','#E08A17'],['done','Done','#1FA971'],['cancelled','Cancelled','#E0453F']];
-const PRI={low:['Low','#1FA971'],medium:['Medium','#17A9FF'],high:['High','#E08A17'],urgent:['Urgent','#E0453F']};
-const FA_ST={todo:'برای انجام',doing:'در حال انجام',review:'در حال بررسی',done:'انجام‌شده',cancelled:'لغو شده'};
-const FA_PRI={low:'کم',medium:'متوسط',high:'زیاد',urgent:'فوری'};
-const JMFA=['فروردین','اردیبهشت','خرداد','تیر','مرداد','شهریور','مهر','آبان','آذر','دی','بهمن','اسفند'];
-const JM=['Farvardin','Ordibehesht','Khordad','Tir','Mordad','Shahrivar','Mehr','Aban','Azar','Dey','Bahman','Esfand'];
-const C='kanban_comments';
-const S={tasks:[],comments:{},people:{},opts:[],me:null,host:null,q:'',who:'',mine:false,err:'',seen:null,timer:null,popOpen:false,arch:false};
-const e=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-const isSup=()=>currentUserRole==='supervisor';
-const p2=n=>String(n).padStart(2,'0');
-const toJ=d=>{if(!d)return null;const[y,m,x]=d.split('-').map(Number);return gregorianToJalali(y,m,x)};
-const fd=d=>{const j=toJ(d);return j?`${j[2]} ${JM[j[1]-1]} ${j[0]}`:''};
-const today=()=>{const j=tehranTodayJalali();return jalaliToGregorian(j[0],j[1],j[2])};
-const late=t=>t.due_date&&t.status!=='done'&&t.status!=='cancelled'&&t.due_date<today();
-// ---- multi-assignee helpers (assignee_ids = uuid[]; assignee_id stays as the first assignee for backward compatibility)
-const ids=t=>Array.isArray(t.assignee_ids)&&t.assignee_ids.length?t.assignee_ids:(t.assignee_id?[t.assignee_id]:[]);
-const names=t=>ids(t).map(i=>S.people[i]||'—');
-// supervisor sees everything; everyone else only tasks assigned to them or created by them
-const visible=t=>isSup()||t.created_by===S.me||ids(t).includes(S.me);
-const cms=t=>S.comments[t.id]||[];
-const match=t=>(!S.q||((t.title||'')+' '+cms(t).map(c=>c.body).join(' ')).includes(S.q))&&(!S.who||ids(t).includes(S.who))&&(!S.mine||ids(t).includes(S.me));
-const USER_SVG='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></svg>';
-const av=t=>{const a=ids(t);if(!a.length)return '';return `<span class="kb-av${a.length>1?' multi':''}" data-tid="${e(t.id)}">${USER_SVG}${a.length>1?'<em>'+a.length+'</em>':''}</span>`};
-async function load(){
-  S.me=currentUserId||(await supabaseClient.auth.getSession()).data.session?.user?.id;
-  const r=await supabaseClient.from(T).select('*').order('created_at',{ascending:false});
-  S.err=r.error?('Failed to load tasks: '+r.error.message):'';
-  S.tasks=(r.data||[]).filter(visible);
-  S.comments={};
-  const cr=await supabaseClient.from(C).select('*').order('created_at',{ascending:true}).limit(5000);
-  if(cr.error){S.err=S.err||('Failed to load comments: '+cr.error.message)}
-  else{const vis=new Set(S.tasks.map(t=>t.id));(cr.data||[]).forEach(c=>{if(vis.has(c.task_id))(S.comments[c.task_id]=S.comments[c.task_id]||[]).push(c)})}
-  // only leaders + supervisors are listed in the kanban; RPC bypasses RLS so leaders can see each other and supervisors
-  let p=await supabaseClient.rpc('kanban_people');
-  if(p.error){console.warn('kanban_people RPC failed, falling back:',p.error.message);p=await supabaseClient.from('profiles').select('id, full_name').in('role',['leader','supervisor']).limit(500)}
-  S.people={}; S.opts=[]; (p.data||[]).forEach(x=>{S.people[x.id]=x.full_name||'—';S.opts.push(x.id)});
-  const miss=[...new Set(S.tasks.flatMap(t=>ids(t).concat(t.created_by,cms(t).map(c=>c.author_id))).concat(S.me).filter(i=>i&&!S.people[i]))];
-  if(miss.length){
-    // RLS on profiles hides other users' names from non-supervisors -> use a SECURITY DEFINER RPC (see kanban_names.sql)
-    let n=await supabaseClient.rpc('kanban_names',{p_ids:miss});
-    if(n.error){console.warn('kanban_names RPC failed, falling back to direct select:',n.error.message);n=await supabaseClient.from('profiles').select('id, full_name').in('id',miss)}
-    (n.data||[]).forEach(x=>S.people[x.id]=x.full_name||'—');
-  }
-}
-function shell(){
-  const opts=Object.entries(S.people).sort((a,b)=>a[1].localeCompare(b[1],'fa')).map(([i,n])=>`<option value="${e(i)}">${e(n)}</option>`).join('');
-  S.host.innerHTML=`<div class="kb-wrap"><div class="kb-bar"><input type="search" id="kb-q" placeholder="Search tasks..." value="${e(S.q)}">
-  <select id="kb-who"><option value="">All assignees</option>${opts}</select>
-  <label class="kb-mine"><input type="checkbox" id="kb-mine" ${S.mine?'checked':''}> My tasks only</label>
-  <span id="kb-stats"></span><button class="kb-btn" id="kb-add" type="button">+ New task</button></div>
-  <div class="azki-error" style="display:${S.err?'block':'none'}">${e(S.err)}</div><div class="kb-board" id="kb-board"></div><div id="kb-arch-host"></div></div>`;
-  const $=i=>S.host.querySelector(i);
-  $('#kb-who').value=S.who;
-  $('#kb-q').oninput=ev=>{S.q=ev.target.value.trim();board()};
-  $('#kb-who').onchange=ev=>{S.who=ev.target.value;board()};
-  $('#kb-mine').onchange=ev=>{S.mine=ev.target.checked;board()};
-  $('#kb-add').onclick=()=>modal();
-  board();
-}
-function board(){
-  const list=S.tasks.filter(t=>t.status!=='archived'&&match(t));
-  const lt=list.filter(late).length, fresh=newOnes();
-  S.host.querySelector('#kb-stats').innerHTML=`<span class="kb-chip">${list.length} tasks</span> ${lt?`<span class="kb-chip bad">${lt} overdue</span>`:''}`;
-  const b=S.host.querySelector('#kb-board');
-  b.innerHTML=COLS.map(([k,n,c])=>{const items=list.filter(t=>t.status===k);
-    return `<div class="kb-col" data-col="${k}" style="--c:${c}"><div class="kb-h">${n}<b>${items.length}</b></div>${items.map(t=>`
-    <div class="kb-card${fresh.includes(t)?' new':''}" data-id="${e(t.id)}" style="--p:${(PRI[t.priority]||PRI.medium)[1]}">
-      <div class="t">${e(t.title)}</div>
-      <div class="kb-meta"><span>${(PRI[t.priority]||PRI.medium)[0]}</span>${cms(t).length?`<span>💬 ${cms(t).length}</span>`:''}${t.due_date?`<span class="${late(t)?'late':''}">📅 ${fd(t.due_date)}</span>`:''}${av(t)}</div></div>`).join('')||'<div class="kb-empty">No cards</div>'}
-    <div class="kb-quick-host"><button class="kb-add-card" type="button" data-col="${k}">+ Add a card</button></div>${k==='done'&&items.length?'<button class="kb-add-card" type="button" data-arch-all="1">🗄 Archive all done</button>':''}</div>`}).join('');
-  b.querySelectorAll('[data-arch-all]').forEach(btn=>btn.onclick=()=>archiveMany(list.filter(t=>t.status==='done')));
-  archiveView();
-  b.querySelectorAll('.kb-add-card').forEach(btn=>btn.onclick=()=>quick(btn));
-  b.querySelectorAll('.kb-card').forEach(el=>el.addEventListener('pointerdown',ev=>dragStart(ev,el)));
-  b.querySelectorAll('.kb-av').forEach(el=>{
-    el.addEventListener('mouseenter',()=>tipShow(el));
-    el.addEventListener('mouseleave',tipHide);
-    el.addEventListener('pointerdown',tipHide);
-  });
-}
-function tipHide(){const x=document.getElementById('kb-tip');if(x)x.remove()}
-function tipShow(el){
-  tipHide();
-  const t=S.tasks.find(x=>x.id===el.dataset.tid); if(!t)return;
-  const tp=document.createElement('div'); tp.id='kb-tip'; tp.className='kb-tip';
-  tp.innerHTML='<b>مسئول'+(ids(t).length>1?'‌ها':'')+'</b>'+names(t).map(n=>'<div>'+e(n)+'</div>').join('');
-  document.body.appendChild(tp);
-  const r=el.getBoundingClientRect(), w=tp.offsetWidth, h=tp.offsetHeight;
-  let left=Math.min(Math.max(8,r.left+r.width/2-w/2),window.innerWidth-w-8);
-  let top=r.top-h-8; if(top<8)top=r.bottom+8;
-  tp.style.left=left+'px'; tp.style.top=top+'px';
-}
-async function archiveMany(items){
-  if(!items.length)return;
-  const ids=items.map(t=>t.id), now=new Date().toISOString();
-  const r=await supabaseClient.from(T).update({status:'archived',updated_at:now}).in('id',ids);
-  if(r.error){alert('Archive failed: '+r.error.message);return}
-  await refresh();
-}
-function archiveView(){
-  const host=S.host&&S.host.querySelector('#kb-arch-host'); if(!host)return;
-  const items=S.tasks.filter(t=>t.status==='archived'&&match(t));
-  host.innerHTML=`<div class="kb-arch-bar"><button class="kb-arch-toggle" type="button">🗄 Archive (${items.length}) ${S.arch?'▴':'▾'}</button></div>`
-   +(S.arch?`<div class="kb-arch">${items.map(t=>`<div class="kb-arch-it" data-id="${e(t.id)}"><div><div class="t">${e(t.title)}</div><div class="kb-meta">${ids(t).length?`<span>👤 ${e(names(t).join('، '))}</span>`:''}${t.updated_at?`<span>🗄 ${fd(String(t.updated_at).slice(0,10))}</span>`:''}</div></div>
-     <div class="acts"><button class="kb-btn ghost" data-a="restore" type="button">Restore</button>${(isSup()||t.created_by===S.me)?'<button class="kb-btn del" data-a="del" type="button">Delete</button>':''}</div></div>`).join('')||'<div class="kb-empty">Archive is empty</div>'}</div>`:'');
-  host.querySelector('.kb-arch-toggle').onclick=()=>{S.arch=!S.arch;archiveView()};
-  host.querySelectorAll('.kb-arch-it').forEach(row=>{
-    const id=row.dataset.id;
-    const rb=row.querySelector('[data-a=restore]'), db=row.querySelector('[data-a=del]');
-    rb.onclick=async()=>{const r=await supabaseClient.from(T).update({status:'done',updated_at:new Date().toISOString()}).eq('id',id);if(r.error)return alert('Restore failed: '+r.error.message);await refresh()};
-    if(db)db.onclick=async()=>{if(!confirm('Permanently delete this task?'))return;const r=await supabaseClient.from(T).delete().eq('id',id);if(r.error)return alert('Delete failed: '+r.error.message);await refresh()};
-  });
-}
-function quick(btn){
-  const host=btn.parentNode, col=btn.dataset.col;
-  host.innerHTML=`<div class="kb-quick"><textarea rows="2" placeholder="Enter a title for this card..."></textarea><div class="r"><button class="kb-btn" type="button">Add card</button><button class="kb-btn ghost" type="button">✕</button></div></div>`;
-  const ta=host.querySelector('textarea'); ta.focus();
-  const [ok,x]=host.querySelectorAll('button');
-  x.onclick=board;
-  const go=async()=>{const title=ta.value.trim(); if(!title)return board();
-    const r=await supabaseClient.from(T).insert({title,status:col,priority:'medium',assignee_id:isSup()?null:S.me,assignee_ids:isSup()?[]:[S.me],created_by:S.me,updated_at:new Date().toISOString()});
-    if(r.error){S.err='Could not add: '+r.error.message;} await refresh();};
-  ok.onclick=go; ta.onkeydown=ev=>{if(ev.key==='Enter'&&!ev.shiftKey){ev.preventDefault();go()}if(ev.key==='Escape')board()};
-}
-// Pointer-based drag & drop (works with mouse and touch, like Trello)
-function dragStart(ev,el){
-  if(ev.button>0)return;
-  const sx=ev.clientX, sy=ev.clientY; let g=null, over=null, moved=false;
-  const mv=m=>{
-    if(!moved&&Math.hypot(m.clientX-sx,m.clientY-sy)<6)return;
-    if(!moved){moved=true;const r=el.getBoundingClientRect();g=el.cloneNode(true);g.className='kb-card kb-ghost';g.style.width=r.width+'px';document.body.appendChild(g);el.classList.add('drag');g._dx=sx-r.left;g._dy=sy-r.top;}
-    g.style.left=(m.clientX-g._dx)+'px';g.style.top=(m.clientY-g._dy)+'px';
-    const bd=S.host.querySelector('#kb-board'); if(!bd)return;
-    const sc=bd.getBoundingClientRect(); if(m.clientX<sc.left+40)bd.scrollLeft-=14; else if(m.clientX>sc.right-40)bd.scrollLeft+=14;
-    const t=document.elementFromPoint(m.clientX,m.clientY), col=t&&t.closest('.kb-col');
-    if(over!==col){if(over)over.classList.remove('over');over=col;if(over)over.classList.add('over');}
-  };
-  const up=()=>{
-    document.removeEventListener('pointermove',mv);document.removeEventListener('pointerup',up);document.removeEventListener('pointercancel',up);
-    if(g)g.remove(); el.classList.remove('drag'); if(over)over.classList.remove('over');
-    if(!moved){modal(S.tasks.find(t=>t.id===el.dataset.id));return}
-    if(over)move(el.dataset.id,over.dataset.col);
-  };
-  document.addEventListener('pointermove',mv);document.addEventListener('pointerup',up);document.addEventListener('pointercancel',up);
-}
-async function move(id,st){
-  const t=S.tasks.find(x=>x.id===id); if(!t||t.status===st)return;
-  const old=t.status; t.status=st; board();
-  const r=await supabaseClient.from(T).update({status:st,updated_at:new Date().toISOString()}).eq('id',id);
-  if(r.error){t.status=old;board();alert('Move failed: '+r.error.message);}
-}
-function jDateFields(due){
-  const j=toJ(due), cy=tehranTodayJalali()[0];
-  const yrs=[...new Set(Array.from({length:7},(_,i)=>cy-1+i).concat(j?[j[0]]:[]))].sort((a,b)=>a-b);
-  const ys=['<option value="">سال</option>'].concat(yrs.map(y=>`<option value="${y}" ${j&&j[0]===y?'selected':''}>${faDigits(y)}</option>`)).join('');
-  const ms=['<option value="">ماه</option>'].concat(JMFA.map((n,i)=>`<option value="${i+1}" ${j&&j[1]===i+1?'selected':''}>${n}</option>`)).join('');
-  const ds=['<option value="">روز</option>'].concat(Array.from({length:31},(_,i)=>`<option value="${i+1}" ${j&&j[2]===i+1?'selected':''}>${faDigits(i+1)}</option>`)).join('');
-  return `<div class="row3"><select id="f-jd">${ds}</select><select id="f-jm">${ms}</select><select id="f-jy">${ys}</select></div>`;
-}
-function peopleList(t){
-  const set=new Set([...S.opts,S.me,...ids(t)].filter(Boolean));
-  return [...set].sort((a,b)=>(S.people[a]||'').localeCompare(S.people[b]||'','fa'));
-}
-function modal(t){
-  const isNew=!t, ro=!isNew&&!isSup()&&t.created_by!==S.me&&!ids(t).includes(S.me), canDel=!isNew&&(isSup()||t.created_by===S.me);
-  if(!isNew)seen(t);
-  t=t||{title:'',description:'',status:'todo',priority:'medium',due_date:'',assignee_ids:isSup()?[]:[S.me]};
-  const cur=new Set(ids(t)), dis=ro?'disabled':'';
-  const ppl=peopleList(t).map(i=>`<label class="kb-pr" data-n="${e(S.people[i]||'')}"><input type="checkbox" value="${e(i)}" ${cur.has(i)?'checked':''} ${dis}><span>${e(S.people[i]||'—')}${i===S.me?' (من)':''}</span></label>`).join('');
-  const ov=document.createElement('div'); ov.className='kb-ov';
-  ov.innerHTML=`<div class="kb-m"><b>${isNew?'ثبت تسک جدید':'ویرایش تسک'}</b>
-  <label>عنوان<input id="f-t" value="${e(t.title)}" ${dis}></label>
-  <div class="row"><label>وضعیت<select id="f-s">${COLS.map(c=>`<option value="${c[0]}">${FA_ST[c[0]]}</option>`).join('')}</select></label>
-  <label>اولویت<select id="f-p" ${dis}>${Object.keys(PRI).map(k=>`<option value="${k}">${FA_PRI[k]}</option>`).join('')}</select></label></div>
-  <div class="fld"><span>مسئول‌ها<small id="f-cnt"></small></span>
-    <div class="kb-ppl">
-      <div class="kb-ppl-top"><input type="search" id="f-ps" placeholder="جستجوی نام..." ${dis}><button class="kb-btn ghost" id="f-all" type="button" ${dis}>انتخاب همه</button><button class="kb-btn ghost" id="f-none" type="button" ${dis}>هیچ‌کدام</button></div>
-      <div class="kb-ppl-list" id="f-pl">${ppl||'<div class="kb-ppl-empty">فردی برای انتساب وجود ندارد</div>'}</div>
-    </div></div>
-  <div class="fld"><span>مهلت انجام (تاریخ شمسی)</span><div ${ro?'style="pointer-events:none;opacity:.6"':''}>${jDateFields(t.due_date)}</div></div>
-  <div class="fld"><span>کامنت‌ها<small id="f-ccnt"></small></span>
-    <div class="kb-cm"><div class="kb-cm-list" id="f-cl"></div>
-      <div class="kb-cm-new"><textarea id="f-cn" rows="2" placeholder="${isNew?'کامنت اول (اختیاری؛ همراه تسک ذخیره می‌شود)':'کامنت بنویسید... (Ctrl+Enter برای ارسال)'}"></textarea>${isNew?'':'<button class="kb-btn" id="f-cs" type="button">ارسال کامنت</button>'}</div>
-    </div></div>
-  <div class="azki-error" id="f-err"></div>
-  <div class="acts"><button class="kb-btn" id="f-ok" type="button">ذخیره</button><button class="kb-btn ghost" id="f-x" type="button">انصراف</button>${!isNew&&!ro?'<button class="kb-btn ghost" id="f-arc" type="button">🗄 بایگانی</button>':''}${canDel?'<button class="kb-btn del" id="f-del" type="button">حذف</button>':''}</div></div>`;
-  document.body.appendChild(ov);
-  const q=i=>ov.querySelector(i); q('#f-s').value=t.status; q('#f-p').value=t.priority;
-  const close=()=>ov.remove(); q('#f-x').onclick=close; ov.onmousedown=ev=>{if(ev.target===ov)close()};
-  const fail=m=>{q('#f-err').textContent=m;q('#f-err').style.display='block'};
-  const rows=()=>[...ov.querySelectorAll('.kb-pr')];
-  const upd=()=>{const n=ov.querySelectorAll('#f-pl input:checked').length;q('#f-cnt').textContent=n?`(${faDigits(n)} نفر انتخاب شده)`:''};
-  const setVisible=v=>rows().forEach(r=>{if(r.style.display!=='none')r.querySelector('input').checked=v});
-  q('#f-pl').onchange=upd; q('#f-all').onclick=()=>{setVisible(true);upd()}; q('#f-none').onclick=()=>{setVisible(false);upd()};
-  q('#f-ps').oninput=ev=>{const v=ev.target.value.trim();rows().forEach(r=>r.style.display=(!v||r.dataset.n.includes(v))?'':'none')};
-  upd();
-  const fmtC=c=>{const d=new Date(c.created_at);return faDigits(tehranJalaliKey(d))+' — '+d.toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tehran'})};
-  const renderC=()=>{
-    const list=isNew?[]:cms(t), box=q('#f-cl');
-    box.innerHTML=list.map(c=>`<div class="kb-c${c.author_id===S.me?' mine':''}"><div class="kb-c-h"><b>${e(S.people[c.author_id]||'—')}${c.author_id===S.me?' (من)':''}</b><span>${e(fmtC(c))}</span>${(c.author_id===S.me||isSup())?`<button type="button" data-cid="${e(c.id)}" title="حذف کامنت">✕</button>`:''}</div><div class="kb-c-b">${e(c.body)}</div></div>`).join('')||(isNew?'':'<div class="kb-ppl-empty">هنوز کامنتی ثبت نشده است</div>');
-    if(isNew)box.style.display='none';
-    q('#f-ccnt').textContent=list.length?`(${faDigits(list.length)})`:'';
-    box.scrollTop=box.scrollHeight;
-    box.querySelectorAll('[data-cid]').forEach(b=>b.onclick=async()=>{
-      if(!confirm('این کامنت حذف شود؟'))return;
-      const r=await supabaseClient.from(C).delete().eq('id',b.dataset.cid);
-      if(r.error)return fail('حذف کامنت انجام نشد: '+r.error.message);
-      S.comments[t.id]=cms(t).filter(c=>c.id!==b.dataset.cid); renderC(); rerenderBoard();
-    });
-  };
-  const rerenderBoard=()=>{if(S.host&&S.host.isConnected&&S.host.querySelector('#kb-board'))board()};
-  const sendC=async()=>{
-    const body=q('#f-cn').value.trim(); if(!body||isNew)return true;
-    const r=await supabaseClient.from(C).insert({task_id:t.id,author_id:S.me,body}).select('*').single();
-    if(r.error){fail('ارسال کامنت انجام نشد: '+r.error.message);return false}
-    S.people[S.me]=S.people[S.me]||'—';
-    (S.comments[t.id]=S.comments[t.id]||[]).push(r.data); q('#f-cn').value=''; renderC(); rerenderBoard(); return true;
-  };
-  renderC();
-  if(!isNew){q('#f-cs').onclick=sendC; q('#f-cn').onkeydown=ev=>{if(ev.key==='Enter'&&(ev.ctrlKey||ev.metaKey)){ev.preventDefault();sendC()}}}
-  q('#f-ok').onclick=async()=>{
-    const title=q('#f-t').value.trim(); if(!title)return fail('لطفاً عنوان تسک را وارد کنید.');
-    let due=null; const jy=+q('#f-jy').value, jm=+q('#f-jm').value, jd=+q('#f-jd').value;
-    if(jy||jm||jd){
-      if(!(jy&&jm&&jd))return fail('لطفاً تاریخ مهلت را کامل کنید (روز، ماه و سال).');
-      due=jalaliToGregorian(jy,jm,jd); const[gy,gm,gd]=due.split('-').map(Number), back=gregorianToJalali(gy,gm,gd);
-      if(back[0]!==jy||back[1]!==jm||back[2]!==jd)return fail('این تاریخ در تقویم شمسی وجود ندارد.');
-    }
-    const picked=[...ov.querySelectorAll('#f-pl input:checked')].map(i=>i.value);
-    const row={title,status:q('#f-s').value,priority:q('#f-p').value,assignee_ids:picked,assignee_id:picked[0]||null,due_date:due,updated_at:new Date().toISOString()};
-    const r=ro?await supabaseClient.from(T).update({status:row.status,updated_at:row.updated_at}).eq('id',t.id)
-      :isNew?await supabaseClient.from(T).insert(Object.assign({created_by:S.me},row)).select('id').single():await supabaseClient.from(T).update(row).eq('id',t.id);
-    if(r.error)return fail('ذخیره انجام نشد: '+r.error.message);
-    const body=q('#f-cn').value.trim();
-    if(body){
-      const cr=await supabaseClient.from(C).insert({task_id:isNew?r.data.id:t.id,author_id:S.me,body});
-      if(cr.error)return fail('تسک ذخیره شد ولی کامنت ثبت نشد: '+cr.error.message);
-    }
-    close(); await refresh();
-  };
-  if(!isNew&&!ro)q('#f-arc').onclick=async()=>{
-    const r=await supabaseClient.from(T).update({status:'archived',updated_at:new Date().toISOString()}).eq('id',t.id);
-    if(r.error)return fail('بایگانی انجام نشد: '+r.error.message); close(); await refresh();
-  };
-  if(canDel)q('#f-del').onclick=async()=>{
-    if(!confirm('این تسک حذف شود؟'))return;
-    const r=await supabaseClient.from(T).delete().eq('id',t.id);
-    if(r.error)return fail('حذف انجام نشد: '+r.error.message); close(); await refresh();
-  };
-}
-async function refresh(){await load();shell();pulse();}
-window.kbOpen=async function(host){
-  S.host=host; if(!host.innerHTML.trim())host.innerHTML='<div class="loading-state">در حال بارگذاری...</div>';
-  await refresh();
-};
-
-/* ---------- Notifications: tasks assigned to me by someone else ---------- */
-const sk=()=>'kb_seen_'+S.me;
-function seenSet(){if(!S.seen){try{S.seen=new Set(JSON.parse(localStorage.getItem(sk())||'[]'))}catch(x){S.seen=new Set()}}return S.seen}
-const key=t=>t.id+':'+S.me;
-function newOnes(){return S.tasks.filter(t=>ids(t).includes(S.me)&&t.created_by!==S.me&&t.status!=='done'&&t.status!=='cancelled'&&t.status!=='archived'&&!seenSet().has(key(t)))}
-function seen(t){const s=seenSet();if(!s.has(key(t))){s.add(key(t));try{localStorage.setItem(sk(),JSON.stringify([...s].slice(-500)))}catch(x){}pulse(true)}}
-let lastCount=-1;
-function pulse(silent){
-  const n=newOnes(), bell=document.getElementById('kb-bell-n');
-  if(bell){bell.textContent=n.length>9?'9+':n.length;bell.style.display=n.length?'block':'none';}
-  document.querySelectorAll('.kb-dot').forEach(d=>d.style.display=n.length?'inline-block':'none');
-  if(!silent&&lastCount>=0&&n.length>lastCount){
-    const t=n[0], el=document.createElement('div'); el.className='kb-toast';
-    el.textContent='📌 تسک جدید برای شما: '+t.title; el.onclick=()=>{el.remove();openTasksTab();setTimeout(()=>modal(t),150)};
-    document.body.appendChild(el); setTimeout(()=>el.remove(),7000);
-  }
-  lastCount=n.length;
-  if(S.popOpen)renderPop();
-}
-function openTasksTab(){
-  const b=document.querySelector('#team-tabs [data-team-tab="kanban"]')||document.querySelector('[data-sup-tab="kanban"]');
-  if(b&&b.offsetParent!==null)b.click();
-}
-function renderPop(){
-  let p=document.getElementById('kb-pop'); if(!p){p=document.createElement('div');p.id='kb-pop';p.className='kb-pop';document.body.appendChild(p)}
-  const n=newOnes();
-  p.innerHTML='<h4>اعلان‌ها</h4>'+(n.length?n.map(t=>`<button class="it" type="button" data-id="${e(t.id)}">${e(t.title)}<small>تسک جدید از طرف ${e(S.people[t.created_by]||'—')}${t.due_date?' · مهلت: '+faDigits(fd(t.due_date)):''}</small></button>`).join(''):'<div class="kb-empty">اعلان جدیدی وجود ندارد</div>');
-  p.querySelectorAll('.it').forEach(b=>b.onclick=()=>{const t=S.tasks.find(x=>x.id===b.dataset.id);S.popOpen=false;p.remove();openTasksTab();setTimeout(()=>{if(S.host&&S.host.isConnected)board();modal(t)},200)});
-}
-window.kbNotifyStart=async function(){
-  if(S.timer)return;
-  const who=document.querySelector('.who'); if(who&&!document.getElementById('kb-bell')){
-    const b=document.createElement('button'); b.id='kb-bell'; b.type='button'; b.className='kb-bell'; b.title='اعلان‌ها';
-    b.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg><b id="kb-bell-n"></b>';
-    b.onclick=ev=>{ev.stopPropagation();S.popOpen=!S.popOpen;if(S.popOpen)renderPop();else{const p=document.getElementById('kb-pop');p&&p.remove()}};
-    who.insertBefore(b,who.firstChild);
-    document.addEventListener('click',ev=>{const p=document.getElementById('kb-pop');if(p&&!p.contains(ev.target)){S.popOpen=false;p.remove()}});
-  }
-  const tick=async()=>{try{await load();if(S.host&&S.host.isConnected&&S.host.offsetParent!==null&&!document.querySelector('.kb-ov'))shell();pulse();}catch(x){}};
-  await tick(); S.timer=setInterval(()=>{if(document.visibilityState==='visible')tick()},60000);
-};
-})();
-</script>
 
 <style>
 /* ===== حضور و غیاب =====
@@ -11058,7 +10741,7 @@ const LEADER_TAB_DEFS = [
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1],
   ['azki-oct', 'گزارش ← OCT', 1],
   ['azki-chart', 'گزارش ← نمودار', 1],
-  ['azki-active', 'وضعیت پنل کارشناسان'], ['azki-payroll', 'محاسبه حقوق'], ['kanban', 'تسک‌ها'],
+  ['azki-active', 'وضعیت پنل کارشناسان'], ['azki-payroll', 'محاسبه حقوق'],
   ['attendance', 'حضور و غیاب'], ['training', 'آموزش'], ['users', 'مدیریت کاربران']
 ];
 
@@ -11448,7 +11131,7 @@ const SUP_TAB_DEFS = [
   ['targets', 'صدور'], ['map', 'نقشه سنتر'], ['sup-perf', 'بررسی عملکرد'], ['bugs', 'خطای صدور'], ['report', 'گزارش (کل گروه)'],
   ['azki-period', 'گزارش ← گزارش دوره‌ای', 1], ['azki-centers', 'گزارش ← به تفکیک نام مرکز', 1], ['azki-shifts', 'گزارش ← درصد صدور به تفکیک شیفت', 1],
   ['azki-compare', 'گزارش ← مقایسه درصد صدور', 1], ['azki-oct', 'گزارش ← OCT', 1], ['azki-chart', 'گزارش ← نمودار', 1],
-  ['azki-active', 'وضعیت پنل کارشناسان'], ['azki-payroll', 'محاسبه حقوق'], ['kanban', 'تسک‌ها'],
+  ['azki-active', 'وضعیت پنل کارشناسان'], ['azki-payroll', 'محاسبه حقوق'],
   ['attendance', 'حضور و غیاب'], ['training', 'آموزش'], ['users', 'مدیریت کاربران'], ['run-history', 'تاریخچه گزارش']
 ];
 const SUP_REPORT_KEYS = ['azki-period', 'azki-centers', 'azki-shifts', 'azki-compare', 'azki-oct', 'azki-chart'];
