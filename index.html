@@ -2782,7 +2782,103 @@ const AZKI_COMPANIES = ["آرمان", "آسیا", "البرز", "ایران", "�
 const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
+const APP_BUILD = '20261107-2';
+setInterval(async () => {
+  if (document.visibilityState !== 'visible') return;
+  try {
+    const el = document.activeElement, tag = el && el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.querySelector('.um-modal, .att-m')) return;
+    const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const v = (await r.text()).trim();
+    if (v && v !== APP_BUILD && /^[0-9a-z-]{4,40}$/.test(v)) location.reload();
+  } catch (e) { }
+}, 30 * 60 * 1000);
+// ============================================================
+// کش درخواست‌های Supabase (سطح fetch): داده‌ی گزارش‌ها فقط وقتی n8n آپدیت کنه عوض می‌شه (ساعتی)،
+// پس تا وقتی «آخرین آپدیت» (app_meta) عوض نشده همون پاسخِ ذخیره‌شده نشون داده می‌شه و select به Supabase نمی‌ره.
+// کش تو localStorage هم نگه داشته می‌شه (با بستن/باز کردن تب هم می‌مونه) و با خروج از حساب پاک می‌شه.
+// مستثنی (همیشه زنده): وضعیت پنل کارشناسان، حضورغیاب، تنظیمات، app_meta و همه‌ی نوشتن‌ها/RPCها.
+// ============================================================
+const FC_TABLES = new Set(['daily_targets', 'bug_reports', 'discrepancy_errors', 'azki_center_period_report', 'azki_center_breakdown_report',
+  'azki_center_shift_report', 'azki_center_agent_company', 'center_sla_report', 'seller_locations', 'profiles', 'center_agents', 'leader_centers', 'team_assignments']);
+const FC_TTL = 90 * 60 * 1000;            // سقف اطمینان؛ اصل کار با تغییر «آخرین آپدیت» باطل شدنه
+const FC_LS = 'azki_fc_v2_';
+const FC_MAX_BYTES = 4200000;
+const FC = { mem: new Map(), inflight: new Map(), loadedFor: null, ver: '', timer: null };
+function fcUid() { try { return (typeof currentUserId !== 'undefined' && currentUserId) || null; } catch (e) { return null; } }
+function fcTable(u) { const m = /\/rest\/v1\/([a-z_]+)(?:\?|$)/.exec(u); return m ? m[1] : null; }
+function fcVer() { const lu = window.__lastUpdateData; return lu && (lu.targets || lu.reports) ? JSON.stringify(lu) : ''; }
+function fcClear() {
+  FC.mem.clear(); FC.inflight.clear();
+  try { const u = fcUid(); if (u) localStorage.removeItem(FC_LS + u); } catch (e) { }
+}
+window.__clearReportCache = fcClear;
+function fcLoad(uid, ver) {
+  if (FC.loadedFor === uid + '|' + ver) return;
+  FC.loadedFor = uid + '|' + ver; FC.mem.clear();
+  try {
+    const o = JSON.parse(localStorage.getItem(FC_LS + uid) || 'null');
+    if (!o || o.ver !== ver) { localStorage.removeItem(FC_LS + uid); return; }
+    const now = Date.now();
+    for (const [k, v] of o.items) if (now - v.t < FC_TTL) FC.mem.set(k, v);
+  } catch (e) { }
+}
+function fcSave(uid, ver) {
+  clearTimeout(FC.timer);
+  FC.timer = setTimeout(() => {
+    try {
+      let items = [...FC.mem.entries()];
+      let txt = JSON.stringify({ ver, items });
+      while (txt.length > FC_MAX_BYTES && items.length) { items.sort((a, b) => a[1].t - b[1].t); items.shift(); txt = JSON.stringify({ ver, items }); }
+      localStorage.setItem(FC_LS + uid, txt);
+    } catch (e) { }
+  }, 1000);
+}
+async function cachedFetch(input, init) {
+  let method = 'GET', url = '';
+  try {
+    method = String((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+    url = String((input && input.url) || input || '');
+  } catch (e) { return fetch(input, init); }
+  const t = fcTable(url);
+  if (method === 'HEAD') return fetch(input, init);
+  if (method !== 'GET') {
+    if (t && FC_TABLES.has(t) || (/\/functions\/v1\//.test(url) && !/"action"\s*:\s*"(list|get_[a-z_]+)"/.test(String((init && init.body) || '')))) { const r = fetch(input, init); r.then(() => fcClear(), () => { }); fcClear(); return r; }
+    return fetch(input, init);
+  }
+  if (!t || !FC_TABLES.has(t)) return fetch(input, init);
+  const uid = fcUid();
+  if (!uid) return fetch(input, init);
+  if (!fcVer() && window.__luPending) { try { await Promise.race([window.__luPending, new Promise(r => setTimeout(r, 4000))]); } catch (e) { } }
+  const ver = fcVer();
+  if (!ver) return fetch(input, init);
+  fcLoad(uid, ver);
+  let hk = '';
+  try { const h = new Headers((init && init.headers) || (input && input.headers) || {}); hk = ['accept', 'range', 'prefer', 'range-unit'].map(n => h.get(n) || '').join('~'); } catch (e) { }
+  const key = url + '|' + hk;
+  const hit = FC.mem.get(key);
+  const mk = (v) => new Response(v.b, { status: v.s, headers: v.h });
+  if (hit && Date.now() - hit.t < FC_TTL) return mk(hit);
+  const pend = FC.inflight.get(key + '|' + ver);
+  if (pend) { const v = await pend; if (v) return mk(v); }
+  const job = (async () => {
+    const res = await fetch(input, init);
+    if (!res.ok) return { res };
+    const body = await res.clone().text();
+    const h = {};
+    ['content-type', 'content-range'].forEach(n => { const x = res.headers.get(n); if (x) h[n] = x; });
+    const v = { t: Date.now(), s: res.status, h, b: body };
+    if (fcVer() === ver) { FC.mem.set(key, v); fcSave(uid, ver); }
+    return { res, v };
+  })();
+  const shared = job.then(r => r.v || null, () => null);
+  FC.inflight.set(key + '|' + ver, shared);
+  try { const r = await job; return r.res; } finally { FC.inflight.delete(key + '|' + ver); }
+}
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { fetch: cachedFetch } });
+supabaseClient.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { try { Object.keys(localStorage).filter(k => k.indexOf(FC_LS) === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { } FC.mem.clear(); FC.loadedFor = null; } });
 
 const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app-screen');
@@ -3539,58 +3635,11 @@ function formatNumber(n) {
 // or the tail of the (ascending-sorted) results gets silently dropped.
 // کش درخواست‌های سنگین گزارش (فقط جدول‌هایی که n8n پرشون می‌کنه): تا «آخرین آپدیت» عوض نشده
 // و تا حداکثر ۲۰ دقیقه، همون پاسخ دوباره از حافظه داده می‌شه و به Supabase درخواست نمی‌ره.
+// (کش قبلیِ سطح fetchAllRows حذف شد؛ کش حالا یک لایه پایین‌تر و روی همه‌ی درخواست‌های Supabase است — بالای supabaseClient)
 const __REPORT_CACHE = { ver: '', map: new Map() };
-const __REPORT_CACHE_RE = /\/rest\/v1\/(daily_targets|azki_center_period_report|azki_center_breakdown_report|azki_center_shift_report|center_sla_report|profiles|center_agents|leader_centers)\?/;
-const __REPORT_CACHE_TTL = 60 * 60 * 1000;   // حداکثر ۱ ساعت؛ n8n هم ساعتی آپدیت می‌کنه
-const __REPORT_CACHE_SS = 'azki_rc_v1';
-let __rcSaveTimer = null;
-function __rcSave() {
-  clearTimeout(__rcSaveTimer);
-  __rcSaveTimer = setTimeout(() => {
-    try {
-      const o = { ver: __REPORT_CACHE.ver, items: [...__REPORT_CACHE.map.entries()] };
-      const txt = JSON.stringify(o);
-      if (txt.length < 3500000) sessionStorage.setItem(__REPORT_CACHE_SS, txt);
-    } catch (e) { }
-  }, 800);
-}
-function __rcRestore(ver) {
-  try {
-    const o = JSON.parse(sessionStorage.getItem(__REPORT_CACHE_SS) || 'null');
-    if (!o || o.ver !== ver) return;
-    const now = Date.now();
-    (o.items || []).forEach(([k, v]) => { if (v && now - v.t < __REPORT_CACHE_TTL) __REPORT_CACHE.map.set(k, v); });
-  } catch (e) { }
-}
-window.__clearReportCache = function () {
-  __REPORT_CACHE.map.clear();
-  try { sessionStorage.removeItem(__REPORT_CACHE_SS); } catch (e) { }
-};
-// هر نوشتن روی پروفایل‌ها/لینک‌ها (یا فراخوانی تابع‌های سرور) یعنی کش دیگه معتبر نیست
-(function () {
-  const of = window.fetch;
-  if (!of || window.__rcFetchPatched) return;
-  window.__rcFetchPatched = true;
-  window.fetch = function (input, init) {
-    try {
-      const m = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
-      const u = String((input && input.url) || input || '');
-      if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && /\/(rest\/v1\/(profiles|center_agents|leader_centers)|functions\/v1\/)/.test(u)) window.__clearReportCache && window.__clearReportCache();
-    } catch (e) { }
-    return of.apply(this, arguments);
-  };
-})();
-function __reportCacheKey(b) {
-  try {
-    const href = b && b.url && b.url.href;
-    if (!href || !__REPORT_CACHE_RE.test(href)) return null;
-    const lu = window.__lastUpdateData;
-    if (!lu || (!lu.targets && !lu.reports)) return null;   // تا «آخرین آپدیت» نیومده کش نکن
-    const ver = JSON.stringify(lu) + '|' + (typeof currentUserId !== 'undefined' ? currentUserId : '');
-    if (__REPORT_CACHE.ver !== ver) { __REPORT_CACHE.ver = ver; __REPORT_CACHE.map.clear(); __rcRestore(ver); }
-    return href;
-  } catch (e) { return null; }
-}
+const __REPORT_CACHE_TTL = 0;
+function __reportCacheKey() { return null; }
+function __rcSave() { }
 async function fetchAllRows(buildQuery) {
   const pageSize = 1000;
   let allRows = [];
@@ -6232,7 +6281,7 @@ async function enterApp(user) {
 
   currentUserId = user.id;
   window.__lastUpdateMode = 'targets';
-  loadLastUpdate();
+  window.__luPending = loadLastUpdate();
   // (تایمر جدای ۲ دقیقه‌ای حذف شد: softRefresh هر ۳ دقیقه خودش loadLastUpdate رو صدا می‌زنه)
 
   const { data: profile, error: profileError } = await supabaseClient
@@ -11441,9 +11490,9 @@ async function centerSettingsRender(host) {
     }
   }
 
-  setInterval(() => { if (document.visibilityState === 'visible' && Date.now() - last >= 180000) softRefresh(false); }, 30000);
+  setInterval(() => { if (document.visibilityState === 'visible' && Date.now() - last >= 300000) softRefresh(false); }, 60000);
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'visible' && Date.now() - last >= 90000) softRefresh(false);
+    if (document.visibilityState === 'visible' && Date.now() - last >= 300000) softRefresh(false);
   });
 })();
 </script>
