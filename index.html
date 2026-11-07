@@ -2783,7 +2783,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261107-4';
+const APP_BUILD = '20261107-5';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -6268,11 +6268,16 @@ async function loadLastUpdate() {
   }
   if (error) console.error('خطا در دریافت آخرین آپدیت:', error.message, error);
 
+  const __prevLu = JSON.stringify(window.__lastUpdateData || {});
   window.__lastUpdateData = {
     targets: (data && data.updated_label) || null,
     reports: (data && data.reports_updated_label) || null
   };
-  if (!error) window.__luCheckedAt = Date.now();
+  if (!error) {
+    const had = window.__luCheckedAt;
+    window.__luCheckedAt = Date.now();
+    if (window.__luNoteChecked) window.__luNoteChecked(!!had && __prevLu !== JSON.stringify(window.__lastUpdateData));
+  }
   renderLastUpdateBar();
 }
 
@@ -11490,18 +11495,31 @@ async function centerSettingsRender(host) {
     }
   }
 
-  // n8n ساعتی و حوالی دقیقه‌ی ۳۷ تا ۴۰ (UTC) داده می‌ریزه؛ «آخرین آپدیت» فقط تو بازه‌ی دقیقه‌ی ۲۵ تا ۵۲ (UTC) هر ساعت
-  // (هر ~۲ دقیقه) چک می‌شه. بیرون از بازه فقط وقتی چک می‌کنیم که از آخرین پایان بازه تا حالا چکی نشده باشه
-  // (مثلاً تب خواب بوده) تا آپدیت از دست نره.
-  function luInWindow(now) { const m = new Date(now).getUTCMinutes(); return m >= 25 && m <= 52; }
+  // n8n هر ساعت (به وقت تهران حوالی :۰۰ تا :۱۰) داده می‌ریزه. «آخرین آپدیت» فقط تو بازه‌ی :۵۸ تا :۱۵ هر ساعت
+  // (هر ~۲ دقیقه) چک می‌شه و به محض اینکه آپدیت اون ساعت دیده شد، تا ساعت بعد دیگه هیچ چکی نمی‌ره.
+  // اگه تا آخر بازه آپدیتی نیومده بود (اجرای دیرتر)، حداکثر دو چک اضافه (۱۰ و ۲۵ دقیقه بعد از پایان بازه) می‌زنه.
+  // (تهران = UTC+3:30 ثابت؛ پس :۵۸ تهران = دقیقه‌ی ۲۸ UTC و :۱۵ تهران = دقیقه‌ی ۴۵ UTC)
+  const LU_START = 28 * 60000, LU_LEN = 17 * 60000, HOUR = 3600000;
+  function luIdx(t) { return Math.floor((t - LU_START) / HOUR); }
   function luNeedCheck() {
-    const now = Date.now();
+    const now = Date.now(), st = window.__luState || (window.__luState = { seen: null, late: 0, lateIdx: null });
     if (!window.__luCheckedAt) return true;
-    if (luInWindow(now)) return now - window.__luCheckedAt >= 110000;
-    const e = new Date(now); e.setUTCMinutes(52, 0, 0);
-    if (e.getTime() > now) e.setUTCHours(e.getUTCHours() - 1);
-    return window.__luCheckedAt < e.getTime();
+    const idx = luIdx(now);
+    if (st.seen === idx) return false;
+    const S = idx * HOUR + LU_START, E = S + LU_LEN;
+    if (now <= E) return now - window.__luCheckedAt >= 110000;
+    if (st.lateIdx !== idx) { st.lateIdx = idx; st.late = 0; }
+    if (window.__luCheckedAt < E) return true;                                   // یک چک بعد از پایان بازه
+    if (st.late < 2 && now >= E + (st.late + 1) * 10 * 60000 + (st.late ? 5 * 60000 : 0)) return true;   // دیرکردهای احتمالی
+    return false;
   }
+  window.__luNoteChecked = function (changed) {
+    const now = Date.now(), st = window.__luState || (window.__luState = { seen: null, late: 0, lateIdx: null }), idx = luIdx(now);
+    if (changed) { st.seen = idx; return; }
+    const E = idx * HOUR + LU_START + LU_LEN;
+    if (st.firstCheck === undefined) { st.firstCheck = now; if (now > E) st.seen = idx; return; }   // اولین بار وسط ساعت: فرض می‌کنیم آپدیت این ساعت اومده
+    if (now > E && st.lateIdx === idx) st.late++;
+  };
   setInterval(() => { if (document.visibilityState === 'visible' && luNeedCheck()) softRefresh(false); }, 30000);
   document.addEventListener('visibilitychange', () => {
     if (document.visibilityState === 'visible' && luNeedCheck()) softRefresh(false);
