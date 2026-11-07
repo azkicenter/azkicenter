@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://hbiygeecakpgjnfieyyt.supabase.co wss://hbiygeecakpgjnfieyyt.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>داشبورد ازکی سنتر</title>
 <script>
@@ -2738,8 +2738,8 @@ document.addEventListener('keydown', e => {
   if ((e.ctrlKey || e.metaKey) && e.shiftKey && ['i', 'j', 'c'].includes(k)) { e.preventDefault(); }
 });
 
-const SUPABASE_URL = "https://hbiygeecakpgjnfieyyt.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable__MGWCrgYYtyMFFQ9NjK5XQ_Ps-emOHk";
+const SUPABASE_URL = "https://paokcjakxxjqtulibegi.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_Us07X7VRGQ4q3jSIPzeT0g_8-qkLTeO";
 
 const USERNAME_EMAIL_DOMAIN = "bimename.com";
 
@@ -3480,12 +3480,35 @@ function formatNumber(n) {
 // Any query whose result could plausibly exceed that (many users × many days)
 // must page through with .range() instead of relying on the default limit,
 // or the tail of the (ascending-sorted) results gets silently dropped.
+// کش درخواست‌های سنگین گزارش (فقط جدول‌هایی که n8n پرشون می‌کنه): تا «آخرین آپدیت» عوض نشده
+// و تا حداکثر ۲۰ دقیقه، همون پاسخ دوباره از حافظه داده می‌شه و به Supabase درخواست نمی‌ره.
+const __REPORT_CACHE = { ver: '', map: new Map() };
+const __REPORT_CACHE_RE = /\/rest\/v1\/(daily_targets|azki_center_period_report|azki_center_breakdown_report|azki_center_shift_report|center_sla_report)\?/;
+const __REPORT_CACHE_TTL = 20 * 60 * 1000;
+function __reportCacheKey(b) {
+  try {
+    const href = b && b.url && b.url.href;
+    if (!href || !__REPORT_CACHE_RE.test(href)) return null;
+    const ver = JSON.stringify(window.__lastUpdateData || {}) + '|' + (typeof currentUserId !== 'undefined' ? currentUserId : '');
+    if (__REPORT_CACHE.ver !== ver) { __REPORT_CACHE.ver = ver; __REPORT_CACHE.map.clear(); }
+    return href;
+  } catch (e) { return null; }
+}
 async function fetchAllRows(buildQuery) {
   const pageSize = 1000;
   let allRows = [];
   let from = 0;
   while (true) {
-    const { data, error } = await buildQuery(from, from + pageSize - 1);
+    const q = buildQuery(from, from + pageSize - 1);
+    const ck = __reportCacheKey(q);
+    const hit = ck && __REPORT_CACHE.map.get(ck);
+    let res;
+    if (hit && Date.now() - hit.t < __REPORT_CACHE_TTL) res = { data: hit.data.slice(), error: null };
+    else {
+      res = await q;
+      if (ck && !res.error && Array.isArray(res.data)) __REPORT_CACHE.map.set(ck, { t: Date.now(), data: res.data.slice() });
+    }
+    const { data, error } = res;
     if (error) return { data: null, error };
     allRows = allRows.concat(data || []);
     if (!data || data.length < pageSize) break;
@@ -4618,7 +4641,7 @@ async function fetchAzkiPayrollAgentDetail(bounds, centerData) {
   const endSort = e0.jy * 10000 + e0.jm * 100 + e0.jd;
 
   const { data: rows, error: rowsErr } = await fetchAllRows((from, to) =>
-    supabaseClient.from(TABLE_TARGETS).select('*')
+    supabaseClient.from(TABLE_TARGETS).select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
       .gte('report_date_sort', startSort).lte('report_date_sort', endSort)
       .order('report_date_sort', { ascending: true }).order('agent_id', { ascending: true })
       .range(from, to));
@@ -6597,7 +6620,7 @@ async function loadTeamView(leaderId) {
   const { data: rows, error: rowsError } = await fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_TARGETS)
-      .select('*')
+      .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
       .in('agent_id', memberIds)
       .gte('report_date_sort', period.startSort)
       .lte('report_date_sort', period.endSort)
@@ -7038,7 +7061,7 @@ async function loadSupervisorView() {
   const { data: rows, error: rowsError } = await fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_TARGETS)
-      .select('*')
+      .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
       .in('agent_id', allAgentIds)
       .gte('report_date_sort', period.startSort)
       .lte('report_date_sort', period.endSort)
@@ -7449,7 +7472,7 @@ async function loadCenterData() {
     fetchAllRows((from, toIdx) =>
       supabaseClient
         .from(TABLE_TARGETS)
-        .select('*')
+        .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
         .in('agent_id', agentIds)
         .gte('report_date_sort', startSort)
         .lte('report_date_sort', endSort)
@@ -7736,7 +7759,7 @@ async function loadCenterPayroll() {
       centerGetOtherKeys().catch(() => []),
       agentIds.length
         ? fetchAllRows((from, to) =>
-            supabaseClient.from(TABLE_TARGETS).select('*')
+            supabaseClient.from(TABLE_TARGETS).select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
               .in('agent_id', agentIds)
               .gte('report_date_sort', startSort).lte('report_date_sort', endSort)
               .order('report_date_sort', { ascending: true }).order('agent_id', { ascending: true })
@@ -8368,7 +8391,7 @@ async function loadTargets(userId) {
 
   const { data, error } = await supabaseClient
     .from(TABLE_TARGETS)
-    .select('*')
+    .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
     .eq('agent_id', userId)
     .gte('report_date_sort', period.startSort)
     .lte('report_date_sort', period.endSort)
