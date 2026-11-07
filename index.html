@@ -3539,14 +3539,54 @@ function formatNumber(n) {
 // کش درخواست‌های سنگین گزارش (فقط جدول‌هایی که n8n پرشون می‌کنه): تا «آخرین آپدیت» عوض نشده
 // و تا حداکثر ۲۰ دقیقه، همون پاسخ دوباره از حافظه داده می‌شه و به Supabase درخواست نمی‌ره.
 const __REPORT_CACHE = { ver: '', map: new Map() };
-const __REPORT_CACHE_RE = /\/rest\/v1\/(daily_targets|azki_center_period_report|azki_center_breakdown_report|azki_center_shift_report|center_sla_report)\?/;
-const __REPORT_CACHE_TTL = 20 * 60 * 1000;
+const __REPORT_CACHE_RE = /\/rest\/v1\/(daily_targets|azki_center_period_report|azki_center_breakdown_report|azki_center_shift_report|center_sla_report|profiles|center_agents|leader_centers)\?/;
+const __REPORT_CACHE_TTL = 60 * 60 * 1000;   // حداکثر ۱ ساعت؛ n8n هم ساعتی آپدیت می‌کنه
+const __REPORT_CACHE_SS = 'azki_rc_v1';
+let __rcSaveTimer = null;
+function __rcSave() {
+  clearTimeout(__rcSaveTimer);
+  __rcSaveTimer = setTimeout(() => {
+    try {
+      const o = { ver: __REPORT_CACHE.ver, items: [...__REPORT_CACHE.map.entries()] };
+      const txt = JSON.stringify(o);
+      if (txt.length < 3500000) sessionStorage.setItem(__REPORT_CACHE_SS, txt);
+    } catch (e) { }
+  }, 800);
+}
+function __rcRestore(ver) {
+  try {
+    const o = JSON.parse(sessionStorage.getItem(__REPORT_CACHE_SS) || 'null');
+    if (!o || o.ver !== ver) return;
+    const now = Date.now();
+    (o.items || []).forEach(([k, v]) => { if (v && now - v.t < __REPORT_CACHE_TTL) __REPORT_CACHE.map.set(k, v); });
+  } catch (e) { }
+}
+window.__clearReportCache = function () {
+  __REPORT_CACHE.map.clear();
+  try { sessionStorage.removeItem(__REPORT_CACHE_SS); } catch (e) { }
+};
+// هر نوشتن روی پروفایل‌ها/لینک‌ها (یا فراخوانی تابع‌های سرور) یعنی کش دیگه معتبر نیست
+(function () {
+  const of = window.fetch;
+  if (!of || window.__rcFetchPatched) return;
+  window.__rcFetchPatched = true;
+  window.fetch = function (input, init) {
+    try {
+      const m = ((init && init.method) || (input && input.method) || 'GET').toUpperCase();
+      const u = String((input && input.url) || input || '');
+      if (m !== 'GET' && m !== 'HEAD' && m !== 'OPTIONS' && /\/(rest\/v1\/(profiles|center_agents|leader_centers)|functions\/v1\/)/.test(u)) window.__clearReportCache && window.__clearReportCache();
+    } catch (e) { }
+    return of.apply(this, arguments);
+  };
+})();
 function __reportCacheKey(b) {
   try {
     const href = b && b.url && b.url.href;
     if (!href || !__REPORT_CACHE_RE.test(href)) return null;
-    const ver = JSON.stringify(window.__lastUpdateData || {}) + '|' + (typeof currentUserId !== 'undefined' ? currentUserId : '');
-    if (__REPORT_CACHE.ver !== ver) { __REPORT_CACHE.ver = ver; __REPORT_CACHE.map.clear(); }
+    const lu = window.__lastUpdateData;
+    if (!lu || (!lu.targets && !lu.reports)) return null;   // تا «آخرین آپدیت» نیومده کش نکن
+    const ver = JSON.stringify(lu) + '|' + (typeof currentUserId !== 'undefined' ? currentUserId : '');
+    if (__REPORT_CACHE.ver !== ver) { __REPORT_CACHE.ver = ver; __REPORT_CACHE.map.clear(); __rcRestore(ver); }
     return href;
   } catch (e) { return null; }
 }
@@ -3562,7 +3602,7 @@ async function fetchAllRows(buildQuery) {
     if (hit && Date.now() - hit.t < __REPORT_CACHE_TTL) res = { data: hit.data.slice(), error: null };
     else {
       res = await q;
-      if (ck && !res.error && Array.isArray(res.data)) __REPORT_CACHE.map.set(ck, { t: Date.now(), data: res.data.slice() });
+      if (ck && !res.error && Array.isArray(res.data)) { __REPORT_CACHE.map.set(ck, { t: Date.now(), data: res.data.slice() }); __rcSave(); }
     }
     const { data, error } = res;
     if (error) return { data: null, error };
@@ -11377,10 +11417,11 @@ async function centerSettingsRender(host) {
     const silent = !manual;
     if (silent) window.__silentRender = (window.__silentRender || 0) + 1;
     try {
+      if (manual && window.__clearReportCache) window.__clearReportCache();
       if (typeof loadLastUpdate === 'function') { try { await loadLastUpdate(); } catch (e) { } }
       // داده‌ی اصلی فقط وقتی n8n آپدیت کرده عوض می‌شه؛ پس تا وقتی «آخرین آپدیت» عوض نشده رفرش خودکار
-      // داده‌ی سنگین رو دوباره نمی‌گیره (برای اطمینان حداکثر هر ۱۵ دقیقه یک‌بار). رفرش دستی همیشه می‌گیره.
-      const dataKey = JSON.stringify(window.__lastUpdateData || {}) + ':' + Math.floor(Date.now() / 900000);
+      // داده‌ی سنگین رو دوباره نمی‌گیره (برای اطمینان حداکثر هر ۱ ساعت یک‌بار). رفرش دستی همیشه می‌گیره.
+      const dataKey = JSON.stringify(window.__lastUpdateData || {}) + ':' + Math.floor(Date.now() / 3600000);
       if (!manual && dataKey === lastDataKey) return;
       lastDataKey = dataKey;
       const jobs = [];
