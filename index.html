@@ -2767,10 +2767,13 @@ function isMissingObjError(e) {
   return !!e && (e.code === 'PGRST205' || e.code === 'PGRST202' || e.status === 404 || /schema cache|does not exist|could not find/i.test(e.message || ''));
 }
 // دریافت خطاهای نیروها؛ اگه جدول bug_reports تو سوپابیس نباشه، همون بار اول متوقف می‌شه و دیگه درخواستی نمی‌ره
+// پرچم «جدول bug_reports وجود نداره» تا ۱۲ ساعت تو مرورگر می‌مونه تا هر بار باز کردن پنل یه درخواست ۴۰۴ نره
+try { const t = +localStorage.getItem('azki_bugs_off'); if (t && Date.now() - t < 12 * 3600 * 1000) window.__bugsDisabled = true; } catch (e) { }
+function markBugsOff() { window.__bugsDisabled = true; try { localStorage.setItem('azki_bugs_off', String(Date.now())); } catch (e) { } }
 async function fetchBugRowsSafe(builder) {
   if (window.__bugsDisabled) return { data: [], error: null };
   const r = await fetchAllRows(builder);
-  if (r && r.error && isMissingObjError(r.error)) { window.__bugsDisabled = true; return { data: [], error: null }; }
+  if (r && r.error && isMissingObjError(r.error)) { markBugsOff(); return { data: [], error: null }; }
   return r;
 }
 const TABLE_PROFILES = "profiles";
@@ -2784,7 +2787,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261108-2';
+const APP_BUILD = '20261109-1';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -9633,7 +9636,7 @@ async function loadBugs(userId, force) {
     .order('check_date_sort', { ascending: false });
 
   if (error) {
-    if ((e => !!e && (e.code === 'PGRST205' || e.code === 'PGRST202' || e.status === 404 || /schema cache|does not exist|could not find/i.test(e.message || '')))(error)) window.__bugsDisabled = true;
+    if ((e => !!e && (e.code === 'PGRST205' || e.code === 'PGRST202' || e.status === 404 || /schema cache|does not exist|could not find/i.test(e.message || '')))(error)) markBugsOff();
     if (!lastRenderedBugsKeysStr) {
       container.innerHTML = `<div class="empty-state">خطا در دریافت اطلاعات: ${escHtml(error.message)}</div>`;
     }
