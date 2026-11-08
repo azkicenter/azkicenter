@@ -2787,7 +2787,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261109-1';
+const APP_BUILD = '20261109-2';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -10959,9 +10959,11 @@ async function rhWatchData() {
   // ۱) غیرفعال ولی صدور ثبت‌شده
   const disabled = [];
   const issuedIdle = new Set(); // کارشناس‌هایی که در بازه‌ی «بی‌صدوری» صدور داشته‌اند
+  const lastSeen = {};          // آخرین روزِ دارای صدور هر کارشناس (در ۱۴ روز اخیر؛ tg از جدیدترین به قدیمی‌ترین مرتب است)
   (tg.data || []).forEach(r => {
     const p = byId[r.agent_id];
     if (!p || p.role !== 'agent') return;
+    if (!lastSeen[r.agent_id]) lastSeen[r.agent_id] = { iso: r.report_date, jal: r.report_date_jalali || r.report_date, sort: r.report_date_sort || 0 };
     if (r.report_date >= sinceIdle) issuedIdle.add(r.agent_id);
     if (r.report_date >= rhIso(RH_CENTER_DAYS) && centerOff(r.agent_id)) {
       const cid = centerOf[r.agent_id];
@@ -10977,23 +10979,24 @@ async function rhWatchData() {
   disabled.sort((a, b) => (b.sort - a.sort) || (b.count - a.count));
 
   // ۲) فعال ولی بدون صدور
-  const idleAgents = (pr.data || []).filter(p => p.role === 'agent' && p.status === 'active'
-    && !/آموزش/.test(p.full_name || '') && !issuedIdle.has(p.id));
+  // همه‌ی کارشناس‌های فعال (غیر آموزش)؛ فیلتر «چند روز بدون صدور» در رابط کاربری انجام می‌شود
+  const activeAgents = (pr.data || []).filter(p => p.role === 'agent' && p.status === 'active' && !/آموزش/.test(p.full_name || ''));
+  const noRecent = activeAgents.filter(p => !lastSeen[p.id]);   // در ۱۴ روز اخیر هیچ صدوری ندارند → آخرین صدورشان را جدا می‌خوانیم
   const last = {};
-  if (idleAgents.length) {
-    const ids = idleAgents.map(p => p.id);
+  if (noRecent.length) {
+    const ids = noRecent.map(p => p.id);
     for (let i = 0; i < ids.length; i += 40) {
       const chunk = ids.slice(i, i + 40);
-      const lr = await fetchAllRows((f, t) => supabaseClient.from(TABLE_TARGETS).select('agent_id, report_date_jalali, report_date_sort')
+      const lr = await fetchAllRows((f, t) => supabaseClient.from(TABLE_TARGETS).select('agent_id, report_date, report_date_jalali, report_date_sort')
         .in('agent_id', chunk).gt('target_count', 0).order('report_date_sort', { ascending: false }).range(f, t));
       if (lr.error) throw lr.error;
-      (lr.data || []).forEach(r => { if (!last[r.agent_id]) last[r.agent_id] = r; });
+      (lr.data || []).forEach(r => { if (!last[r.agent_id]) last[r.agent_id] = { iso: r.report_date, jal: r.report_date_jalali || r.report_date, sort: r.report_date_sort || 0 }; });
     }
   }
-  const idle = idleAgents.map(p => {
-    const l = last[p.id];
+  const idle = activeAgents.map(p => {
+    const l = lastSeen[p.id] || last[p.id];
     const fresh = p.created_at && p.created_at.slice(0, 10) >= sinceIdle;
-    return { date: l ? l.report_date_jalali : '—', sort: l ? (l.report_date_sort || 0) : 0, agent: p.full_name,
+    return { date: l ? l.jal : '—', iso: l ? l.iso : '', sort: l ? l.sort : 0, agent: p.full_name,
       center: centerName(p.id), count: 0, reason: fresh && !l ? 'active_new_no_issuance' : 'active_no_issuance' };
   });
   idle.sort((a, b) => (a.sort - b.sort) || String(a.agent).localeCompare(String(b.agent), 'fa')); // بدون هیچ صدور اول، بعد قدیمی‌ترین
@@ -11097,25 +11100,75 @@ function rhBindDisabledActions(host) {
   if (!host || host.dataset.rhDisBound) return;
   host.dataset.rhDisBound = '1';
   // toggle بابل نمی‌شود → با capture گوش می‌دهیم تا باز/بسته‌بودن بعد از رفرش حفظ شود
-  host.addEventListener('toggle', e => { if (e.target && e.target.id === 'rh-dis-card') rhDis.open = e.target.open; }, true);
+  host.addEventListener('toggle', e => {
+    if (!e.target) return;
+    if (e.target.id === 'rh-dis-card') rhDis.open = e.target.open;
+    if (e.target.id === 'rh-idle-card') rhIdle.open = e.target.open;
+  }, true);
   host.addEventListener('click', e => {
     const b = e.target.closest('[data-rh-dis-filter]');
-    if (!b) return;
-    rhDis.filter = b.dataset.rhDisFilter;
-    const chips = host.querySelector('#rh-dis-chips'), body = host.querySelector('#rh-dis-body');
-    if (chips) chips.innerHTML = rhDisChipsHtml();
-    if (body) body.innerHTML = rhDisBodyHtml();
+    if (b) {
+      rhDis.filter = b.dataset.rhDisFilter;
+      const chips = host.querySelector('#rh-dis-chips'), body = host.querySelector('#rh-dis-body');
+      if (chips) chips.innerHTML = rhDisChipsHtml();
+      if (body) body.innerHTML = rhDisBodyHtml();
+      return;
+    }
+    const bi = e.target.closest('[data-rh-idle-filter]');
+    if (!bi) return;
+    rhIdle.filter = bi.dataset.rhIdleFilter === 'all' ? 'all' : +bi.dataset.rhIdleFilter;
+    const chips2 = host.querySelector('#rh-idle-chips'), body2 = host.querySelector('#rh-idle-body');
+    if (chips2) chips2.innerHTML = rhIdleChipsHtml();
+    if (body2) body2.innerHTML = rhIdleBodyHtml();
   });
+}
+
+// ---- کارت «فعال ولی بدون صدور»: لیست کشویی + فیلتر «چند روز اخیر بدون صدور» ----
+const rhIdle = { open: false, filter: 'all', rows: [] };
+const RH_IDLE_FILTERS = [[1, 'امروز'], [2, '۲ روز اخیر'], [3, '۳ روز اخیر'], ['all', 'کل ' + RH_IDLE_DAYS + ' روز']];
+
+function rhIdleFiltered(rows, f) {
+  const n = f === 'all' ? RH_IDLE_DAYS : f;
+  const since = tehranDateKey(new Date(Date.now() - (n - 1) * 86400000));   // بدون هیچ صدوری از این روز تا امروز
+  return rows.filter(r => !r.iso || r.iso < since);
+}
+
+function rhIdleChipsHtml() {
+  return RH_IDLE_FILTERS.map(([k, n]) =>
+    `<button type="button" class="${String(rhIdle.filter) === String(k) ? 'on' : ''}" data-rh-idle-filter="${k}">${n} (${rhIdleFiltered(rhIdle.rows, k).length})</button>`).join('');
+}
+
+function rhIdleBodyHtml() {
+  const rows = rhIdleFiltered(rhIdle.rows, rhIdle.filter);
+  if (!rows.length) return `<div class="rh-meta" style="margin-top:8px">در این بازه همه‌ی کارشناس‌های فعال صدور داشته‌اند.</div>`;
+  return `<div class="rh-wrap"><table class="rh-tbl"><thead><tr><th>آخرین صدور</th><th>نام کارشناس</th><th>نام سنتر</th><th>علت</th></tr></thead><tbody>${rows.map(d => `<tr>
+      <td>${umEsc(d.date || '—')}</td>
+      <td>${umEsc(d.agent || '—')}</td>
+      <td>${umEsc(d.center || '—')}</td>
+      <td>${umEsc(RH_REASONS[d.reason] || d.reason || '')}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+function rhIdleCard(rows, err) {
+  const title = 'فعال ولی بدون صدور';
+  if (err) return rhWatchCard(title, '', [], '', '', '', err);
+  rhIdle.rows = rows || [];
+  const bad = rhIdleFiltered(rhIdle.rows, 'all').length;
+  return `<details class="list-card rh-run rh-dis" id="rh-idle-card"${rhIdle.open ? ' open' : ''}>
+      <summary>
+        <span>${umEsc(title)}<span class="rh-chev">▾</span></span>${bad ? `<span class="rh-pill bad">${bad} نفر</span>` : '<span class="rh-pill ok">موردی نیست</span>'}
+      </summary>
+      <div class="rh-meta" style="margin-top:6px">کارشناس‌های فعال در پنل که در بازه‌ی انتخابی هیچ صدوری ندارند (ستون تاریخ = آخرین صدور ثبت‌شده)</div>
+      <div class="st-chips" id="rh-idle-chips">${rhIdleChipsHtml()}</div>
+      <div id="rh-idle-body">${rhIdleBodyHtml()}</div>
+    </details>`;
 }
 
 function rhWatchCards(data, err) {
   const d = data || { disabled: [], idle: [], offCenters: [] };
   return rhCenterCard(d.offCenters || [], err)
     + rhDisabledCard(d.disabled, err)
-    + rhWatchCard('فعال ولی بدون صدور',
-      `${RH_IDLE_DAYS} روز اخیر؛ کارشناس‌های فعال بدون هیچ صدوری (ستون تاریخ = آخرین صدور ثبت‌شده)`,
-      d.idle, `${d.idle.length} نفر`,
-      `در ${RH_IDLE_DAYS} روز اخیر همه‌ی کارشناس‌های فعال صدور داشته‌اند.`, 'آخرین صدور', err);
+    + rhIdleCard(d.idle, err);
 }
 
 async function runHistoryOpen(host) {
