@@ -2653,6 +2653,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
           </div>
         </div>
         <div class="admin-company-people" id="azki-active-company-people" style="display:none;"></div>
+        <div class="team-bugs-search-wrap"><input type="search" id="azki-active-search" class="team-bugs-search" placeholder="جستجوی نام کارشناس یا سنتر..." autocomplete="off"></div>
         <div class="list-card" id="azki-active-list">
           <div class="loading-state">در حال بارگذاری...</div>
         </div>
@@ -2783,7 +2784,7 @@ const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
 // نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
-const APP_BUILD = '20261107-5';
+const APP_BUILD = '20261108-1';
 setInterval(async () => {
   if (document.visibilityState !== 'visible') return;
   try {
@@ -4103,6 +4104,14 @@ function renderAzkiActiveCompanyPeople() {
   box.style.display = '';
 }
 
+function azkiNormQ(v) {
+  return String(v == null ? '' : v).normalize('NFKC')
+    .replace(/[\u200c\u200b\u200d\u200e\u200f\u202a-\u202e\u2060\ufeff\u00a0_\-]/g, ' ')
+    .replace(/[\u064b-\u065f\u0670\u0640]/g, '')
+    .replace(/[يى]/g, 'ی').replace(/ك/g, 'ک').replace(/[ۀە]/g, 'ه')
+    .replace(/[٠-٩]/g, d => String(d.charCodeAt(0) - 1632)).replace(/[۰-۹]/g, d => String(d.charCodeAt(0) - 1776))
+    .replace(/\s+/g, ' ').trim().toLowerCase();
+}
 function renderAzkiActiveStatusView() {
   const rows = azkiState.activeStatus.rows;
   const container = document.getElementById('azki-active-list');
@@ -4186,7 +4195,19 @@ function renderAzkiActiveStatusView() {
   document.getElementById('azki-active-pct').textContent =
     faDigits(rows.length ? round2(totalActive / rows.length * 100) : 0) + '٪';
 
-  container.innerHTML = centerSummaries.map(g => {
+  const sInp = document.getElementById('azki-active-search');
+  if (sInp && !sInp.dataset.bound) {
+    sInp.dataset.bound = '1';
+    let tm = null;
+    sInp.addEventListener('input', () => { clearTimeout(tm); tm = setTimeout(renderAzkiActiveStatusView, 120); });
+  }
+  const q = azkiNormQ(sInp ? sInp.value : '');
+  const shownGroups = q ? centerSummaries.map(g => {
+    const byCenter = azkiNormQ(fmtCenterName(g.centerName)).includes(q);
+    const ms = byCenter ? g.members : g.members.filter(m => azkiNormQ(m.full_name).includes(q));
+    return { ...g, members: ms, activeCount: ms.filter(m => m.is_active).length, onlineCount: ms.filter(m => m.is_active_to_issue).length, total: ms.length };
+  }).filter(g => g.members.length) : centerSummaries;
+  container.innerHTML = !shownGroups.length ? '<div class="empty-state">کارشناسی با این نام پیدا نشد</div>' : shownGroups.map(g => {
     const rowsHtml = g.members.map(m => {
       const panelOn = !!m.is_active;
       const online = !!m.is_active_to_issue;
@@ -4212,7 +4233,7 @@ function renderAzkiActiveStatusView() {
         </div>`;
     }).join('');
     return `
-      <div class="leader-item">
+      <div class="leader-item${q ? ' open' : ''}">
         <button class="leader-header" type="button">
           <div class="leader-name-wrap">
             <svg class="leader-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
