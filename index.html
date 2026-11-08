@@ -2786,19 +2786,8 @@ const AZKI_COMPANIES = ["آرمان", "آسیا", "البرز", "ایران", "�
 const TABLE_LEADER_CENTERS = "leader_centers";
 const TABLE_CENTER_AGENTS = "center_agents";
 const TABLE_SELLER_LOCATIONS = "seller_locations";
-// نسخه‌ی ساخت: تب‌های بازِ قدیمی هر ۳۰ دقیقه version.txt رو (از GitHub Pages، نه Supabase) چک می‌کنن و اگه عوض شده بود خودشون رفرش می‌شن
+// نسخه‌ی ساخت (فقط برای مرجع؛ رفرش خودکار تب‌ها بر اساس version.txt برداشته شد تا بعد از هر انتشار موج درخواست ایجاد نشود)
 const APP_BUILD = '20261109-2';
-setInterval(async () => {
-  if (document.visibilityState !== 'visible') return;
-  try {
-    const el = document.activeElement, tag = el && el.tagName;
-    if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || document.querySelector('.um-modal, .att-m')) return;
-    const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
-    if (!r.ok) return;
-    const v = (await r.text()).trim();
-    if (v && v !== APP_BUILD && /^[0-9a-z-]{4,40}$/.test(v)) location.reload();
-  } catch (e) { }
-}, 30 * 60 * 1000);
 // ============================================================
 // کش درخواست‌های Supabase (سطح fetch): داده‌ی گزارش‌ها فقط وقتی n8n آپدیت کنه عوض می‌شه (ساعتی)،
 // پس تا وقتی «آخرین آپدیت» (app_meta) عوض نشده همون پاسخِ ذخیره‌شده نشون داده می‌شه و select به Supabase نمی‌ره.
