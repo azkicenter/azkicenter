@@ -4064,15 +4064,25 @@ async function loadAgentTokenBanner() {
       ? 'توکن ازکی‌ایجنت منقضی شده است؛ تا توکن تازه ثبت نشود، این تب به‌روز نمی‌شود.'
       : `توکن ازکی‌ایجنت حدود ${faDigits(Math.max(1, Math.round(left / 60000)))} دقیقه‌ی دیگر منقضی می‌شود.`;
   const how = isSup
-    ? `<div style="margin-top:6px;opacity:.85;">در پنل ازکی‌ایجنت لاگین کن (اگر اکستنشن نصب باشد خودش ثبت می‌کند)، یا توکن را اینجا paste کن:</div>
-       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
-         <input type="text" id="agent-token-input" dir="ltr" autocomplete="off" placeholder="eyJhbGciOi..." style="flex:1;min-width:220px;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--card,#fff);color:inherit;font-size:12px;">
-         <button type="button" id="agent-token-save" class="tab-btn" style="padding:8px 14px;">ثبت توکن</button>
-       </div>
-       <div id="agent-token-msg" style="margin-top:6px;font-size:12px;"></div>`
+    ? `<div style="margin-top:6px;opacity:.85;">در پنل ازکی‌ایجنت لاگین کن و در اکستنشن «آپدیت توکن» را بزن، یا توکن را دستی ثبت کن.</div>
+       <button type="button" id="agent-token-toggle" class="tab-btn" style="margin-top:8px;padding:7px 14px;">ثبت دستی توکن</button>
+       <div id="agent-token-form" style="display:none;margin-top:8px;">
+         <div style="display:flex;gap:8px;flex-wrap:wrap;">
+           <input type="text" id="agent-token-input" dir="ltr" autocomplete="off" placeholder="eyJhbGciOi..." style="flex:1;min-width:220px;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--card,#fff);color:inherit;font-size:12px;">
+           <button type="button" id="agent-token-save" class="tab-btn" style="padding:8px 14px;">ثبت توکن</button>
+         </div>
+         <div id="agent-token-msg" style="margin-top:6px;font-size:12px;"></div>
+       </div>`
     : '<div style="margin-top:6px;opacity:.85;">لطفاً به سرپرست اطلاع بده تا توکن را به‌روز کند.</div>';
   box.style.cssText = 'display:block;margin:0 0 12px;padding:12px 14px;border-radius:10px;background:var(--danger-soft);border:1px solid var(--danger);font-size:13px;line-height:1.7;';
   box.innerHTML = `<b>⚠ ${msg}</b>${how}`;
+  const tg = document.getElementById('agent-token-toggle');
+  if (tg) tg.onclick = () => {
+    const f = document.getElementById('agent-token-form');
+    const open = f.style.display === 'none';
+    f.style.display = open ? '' : 'none';
+    if (open) document.getElementById('agent-token-input').focus();
+  };
   const btn = document.getElementById('agent-token-save');
   if (btn) btn.onclick = async () => {
     const inp = document.getElementById('agent-token-input');
