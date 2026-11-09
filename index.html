@@ -57,7 +57,7 @@ html.auth-pending #login-screen{display:none !important}
 .auth-spinner{width:34px;height:34px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:authspin .8s linear infinite}
 @keyframes authspin{to{transform:rotate(360deg)}}
 </style>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R" crossorigin="anonymous"></script>
+<script src="vendor/supabase.js" integrity="sha384-BWcjm9OdFth9TbhCxZPdm+gAOUMAzQy9nmTs12ioXdCcbVnJaPMn+fMUoQCLt60R"></script>
 <style>
   :root {
     --bg: transparent;
@@ -1313,7 +1313,7 @@ html.auth-pending #login-screen{display:none !important}
   .glass-reveal {
     opacity: 0;
     transform: translateY(var(--reveal-offset, 30px)) scale(.96);
-    transition: opacity .6s cubic-bezier(.2,.8,.2,1), transform .75s cubic-bezier(.2,1.15,.35,1);
+    transition: opacity .3s ease-out, transform .3s ease-out;
   }
   .glass-reveal.glass-in {
     opacity: 1;
@@ -6733,24 +6733,28 @@ async function loadTeamView(leaderId) {
     return;
   }
 
-  const { data: centerProfiles, error: centerProfilesError } = await fetchAllRows((from, to) =>
+  // پروفایل سنترها و لینک نیروها مستقل‌اند؛ هم‌زمان گرفته می‌شوند
+  const centerProfilesP = fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_PROFILES)
       .select('id, full_name')
       .in('id', myCenterIds)
       .range(from, to)
   );
-
-  const centerNameById = {};
-  (centerProfiles || []).forEach(c => { centerNameById[c.id] = c.full_name || 'بدون سنتر'; });
-
-  const { data: centerAgentLinks, error: centerAgentLinksError } = await fetchAllRows((from, to) =>
+  const centerAgentLinksP = fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_CENTER_AGENTS)
       .select('center_id, agent_id')
       .in('center_id', myCenterIds)
       .range(from, to)
   );
+  [centerProfilesP, centerAgentLinksP].forEach(p => p.catch(() => {}));
+  const { data: centerProfiles, error: centerProfilesError } = await centerProfilesP;
+
+  const centerNameById = {};
+  (centerProfiles || []).forEach(c => { centerNameById[c.id] = c.full_name || 'بدون سنتر'; });
+
+  const { data: centerAgentLinks, error: centerAgentLinksError } = await centerAgentLinksP;
 
   if (centerAgentLinksError) {
     container.innerHTML = `<div class="empty-state">خطا در دریافت اساین نیروها: ${escHtml(centerAgentLinksError.message)}</div>`;
@@ -6808,7 +6812,8 @@ async function loadTeamView(leaderId) {
 
   const memberIds = allMembers.map(m => m.id);
 
-  const { data: rows, error: rowsError } = await fetchAllRows((from, to) =>
+  // تارگت‌ها و خطاها فقط به memberIds نیاز دارند؛ هم‌زمان گرفته می‌شوند
+  const rowsP = fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_TARGETS)
       .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
@@ -6819,6 +6824,16 @@ async function loadTeamView(leaderId) {
       .order('agent_id', { ascending: true })
       .range(from, to)
   );
+  const bugRowsP = fetchBugRowsSafe((from, to) =>
+    supabaseClient
+      .from(TABLE_BUGS)
+      .select('*')
+      .in('user_id', memberIds)
+      .order('check_date_sort', { ascending: false })
+      .range(from, to)
+  );
+  [rowsP, bugRowsP].forEach(p => p.catch(() => {}));
+  const { data: rows, error: rowsError } = await rowsP;
 
   if (token !== teamLoadToken) return;
   if (rowsError) {
@@ -6827,14 +6842,7 @@ async function loadTeamView(leaderId) {
     return;
   }
 
-  const { data: bugRows, error: bugRowsError } = await fetchBugRowsSafe((from, to) =>
-    supabaseClient
-      .from(TABLE_BUGS)
-      .select('*')
-      .in('user_id', memberIds)
-      .order('check_date_sort', { ascending: false })
-      .range(from, to)
-  );
+  const { data: bugRows, error: bugRowsError } = await bugRowsP;
 
   if (bugRowsError) {
     console.error('خطا در دریافت خطاهای نیروها:', bugRowsError.message);
@@ -7183,14 +7191,25 @@ async function loadSupervisorView() {
     document.getElementById('supervisor-agent-with-target-count').textContent = withTargetText;
   };
 
-  const { data: centers, error: centersError } = await fetchAllRows((from, to) =>
-    supabaseClient
-      .from(TABLE_PROFILES)
-      .select('id, full_name, status')
-      .eq('role', 'center')
-      .order('full_name', { ascending: true })
-      .range(from, to)
-  );
+  // دو درخواست مستقل هم‌زمان (قبلاً پشت‌سرهم بودند)
+  const [centersRes, linksRes] = await Promise.all([
+    fetchAllRows((from, to) =>
+      supabaseClient
+        .from(TABLE_PROFILES)
+        .select('id, full_name, status')
+        .eq('role', 'center')
+        .order('full_name', { ascending: true })
+        .range(from, to)
+    ),
+    fetchAllRows((from, to) =>
+      supabaseClient
+        .from(TABLE_CENTER_AGENTS)
+        .select('center_id, agent_id')
+        .range(from, to)
+    ),
+  ]);
+  const { data: centers, error: centersError } = centersRes;
+  const { data: centerAgentLinks, error: centerAgentLinksError } = linksRes;
 
   if (centersError) {
     container.innerHTML = `<div class="empty-state">خطا در دریافت سنترها: ${escHtml(centersError.message)}</div>`;
@@ -7201,13 +7220,6 @@ async function loadSupervisorView() {
   const centerNameById = {};
   const centerDisabledById = {};
   (centers || []).forEach(c => { centerNameById[c.id] = c.full_name || 'بدون سنتر'; if (c.status === 'disabled') centerDisabledById[c.id] = true; });
-
-  const { data: centerAgentLinks, error: centerAgentLinksError } = await fetchAllRows((from, to) =>
-    supabaseClient
-      .from(TABLE_CENTER_AGENTS)
-      .select('center_id, agent_id')
-      .range(from, to)
-  );
 
   if (centerAgentLinksError) {
     container.innerHTML = `<div class="empty-state">خطا در دریافت اساین نیروها: ${escHtml(centerAgentLinksError.message)}</div>`;
@@ -7231,7 +7243,8 @@ async function loadSupervisorView() {
     return;
   }
 
-  const { data: agentProfiles, error: agentProfilesError } = await fetchAllRows((from, to) =>
+  // پروفایل‌ها، تارگت‌ها و خطاها فقط به allAgentIds نیاز دارند؛ هم‌زمان شروع می‌شوند (قبلاً سه مرحله‌ی پشت‌سرهم بود)
+  const agentProfilesP = fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_PROFILES)
       .select('id, backoffice_id, full_name, role, status')
@@ -7239,17 +7252,7 @@ async function loadSupervisorView() {
       .eq('role', 'agent')
       .range(from, to)
   );
-
-  if (agentProfilesError) {
-    container.innerHTML = `<div class="empty-state">خطا در دریافت پروفایل کارشناس‌ها: ${escHtml(agentProfilesError.message)}</div>`;
-    setTotals('—', '—', '—');
-    return;
-  }
-
-  const agentProfileById = {};
-  (agentProfiles || []).forEach(a => { agentProfileById[a.id] = a; });
-
-  const { data: rows, error: rowsError } = await fetchAllRows((from, to) =>
+  const rowsP = fetchAllRows((from, to) =>
     supabaseClient
       .from(TABLE_TARGETS)
       .select('agent_id,report_date,report_date_jalali,report_date_sort,target_count,avg_issuance_minutes,discount_transfer_count')
@@ -7260,6 +7263,27 @@ async function loadSupervisorView() {
       .order('agent_id', { ascending: true })
       .range(from, to)
   );
+  const bugRowsP = fetchBugRowsSafe((from, to) =>
+    supabaseClient
+      .from(TABLE_BUGS)
+      .select('user_id, check_date_sort')
+      .in('user_id', allAgentIds)
+      .range(from, to)
+  );
+  [agentProfilesP, rowsP, bugRowsP].forEach(p => p.catch(() => {}));
+
+  const { data: agentProfiles, error: agentProfilesError } = await agentProfilesP;
+
+  if (agentProfilesError) {
+    container.innerHTML = `<div class="empty-state">خطا در دریافت پروفایل کارشناس‌ها: ${escHtml(agentProfilesError.message)}</div>`;
+    setTotals('—', '—', '—');
+    return;
+  }
+
+  const agentProfileById = {};
+  (agentProfiles || []).forEach(a => { agentProfileById[a.id] = a; });
+
+  const { data: rows, error: rowsError } = await rowsP;
 
   if (token !== supLoadToken) return;
   if (rowsError) {
@@ -7274,13 +7298,7 @@ async function loadSupervisorView() {
     rowsByAgent[r.agent_id].push(r);
   });
 
-  const { data: bugRows, error: bugRowsError } = await fetchBugRowsSafe((from, to) =>
-    supabaseClient
-      .from(TABLE_BUGS)
-      .select('user_id, check_date_sort')
-      .in('user_id', allAgentIds)
-      .range(from, to)
-  );
+  const { data: bugRows, error: bugRowsError } = await bugRowsP;
 
   if (token !== supLoadToken) return;
   if (bugRowsError) console.error('خطا در دریافت خطاهای نیروها:', bugRowsError.message);
@@ -7754,20 +7772,20 @@ async function loadCenterView(centerId) {
   const listEl = document.getElementById('center-list');
   const bugsListEl = document.getElementById('center-bugs-list');
 
-  const { data: myProfile } = await supabaseClient
-    .from(TABLE_PROFILES)
-    .select('full_name')
-    .eq('id', centerId)
-    .single();
+  // نام سنتر و لیست نیروها مستقل‌اند؛ هم‌زمان گرفته می‌شوند
+  const [profRes, linksRes] = await Promise.all([
+    supabaseClient.from(TABLE_PROFILES).select('full_name').eq('id', centerId).single(),
+    fetchAllRows((from, to) =>
+      supabaseClient
+        .from(TABLE_CENTER_AGENTS)
+        .select('agent_id')
+        .eq('center_id', centerId)
+        .range(from, to)
+    ),
+  ]);
+  const { data: myProfile } = profRes;
   centerViewName = myProfile ? (myProfile.full_name || '') : '';
-
-  const { data: myAgentLinks, error: myAgentLinksError } = await fetchAllRows((from, to) =>
-    supabaseClient
-      .from(TABLE_CENTER_AGENTS)
-      .select('agent_id')
-      .eq('center_id', centerId)
-      .range(from, to)
-  );
+  const { data: myAgentLinks, error: myAgentLinksError } = linksRes;
 
   const myAgentIds = (myAgentLinks || []).map(l => l.agent_id).filter(Boolean);
 
@@ -9764,7 +9782,7 @@ window.silentRun = async function (fn) {
       var el = entry.target;
 
       if (entry.isIntersecting) {
-        var delay = (enterBatchCounter % 10) * 60;
+        var delay = (enterBatchCounter % 6) * 25;
         enterBatchCounter++;
         clearTimeout(enterBatchResetTimer);
         enterBatchResetTimer = setTimeout(function () { enterBatchCounter = 0; }, 180);
@@ -9772,7 +9790,7 @@ window.silentRun = async function (fn) {
         el.style.transitionDelay = delay + 'ms';
         requestAnimationFrame(function () {
           el.classList.add('glass-in');
-          setTimeout(function () { el.style.transitionDelay = ''; }, 1300);
+          setTimeout(function () { el.style.transitionDelay = ''; }, 700);
         });
         // یک‌بار نمایش؛ دیگه با هر اسکرول کلاس برداشته/گذاشته نشه (باعث کندی و پرش می‌شد)
         io.unobserve(el);
@@ -11663,7 +11681,7 @@ html.nav-open #nav-drawer{transform:none;visibility:visible;transition-delay:0s}
 #nav-drawer .tab-btn svg{width:18px;height:18px;opacity:.8}
 #nav-drawer .tab-btn.active{background:var(--accent-soft);color:var(--accent-deep);font-weight:700;box-shadow:inset -3px 0 0 var(--accent)}
 /* ===== انیمیشن‌های تقویت‌شده ===== */
-.glass-reveal,.um-settings{transition:opacity .6s cubic-bezier(.2,.8,.2,1),transform .55s cubic-bezier(.2,1.1,.35,1),box-shadow .35s ease,border-color .25s ease,background .2s ease}
+.glass-reveal,.um-settings{transition:opacity .3s ease-out,transform .3s ease-out,box-shadow .2s ease,border-color .2s ease,background .2s ease}
 .summary-card:hover{transform:translateY(-5px) scale(1.015);box-shadow:0 22px 44px -16px rgba(22,86,245,.6),inset 0 1px 0 rgba(255,255,255,.5)}
 .leader-item:hover,.um-settings:hover{box-shadow:0 14px 34px -18px rgba(22,86,245,.45)}
 .leader-chevron{transition:transform .38s cubic-bezier(.2,1.2,.3,1)}
