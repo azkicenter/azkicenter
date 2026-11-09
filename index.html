@@ -2633,6 +2633,7 @@ html select option:checked,html select option:hover{background-color:#dbe7ff !im
       </div>
 
       <div id="sup-view-azki-active" style="display:none;">
+        <div id="agent-token-banner" style="display:none;"></div>
         <div class="period-label">وضعیت لحظه‌ای کاربران مراکز صدور — «فعال/غیرفعال»: وضعیت پنل کارشناس | «آنلاین/آفلاین»: در حال صدور بودن</div>
         <div class="summary-row">
           <div class="summary-card">
@@ -3042,6 +3043,7 @@ function teamShowTab(tab) {
   azkiSyncFilterForTab(tab);
   if (tab === 'azki-shifts' && !azkiState.shifts.loaded) loadAzkiShiftsView();
   if (tab === 'azki-active' && !azkiState.activeStatus.loaded) loadAzkiActiveStatusView();
+  if (tab === 'azki-active') loadAgentTokenBanner();
   if (tab === 'azki-payroll' && !azkiState.payroll.loaded) loadAzkiPayrollView();
   if (tab === 'attendance') attOpen(document.getElementById('panel-attendance'));
   if (tab === 'users') usersOpen(document.getElementById('panel-users'));
@@ -3494,6 +3496,7 @@ document.querySelectorAll('#center-tabs .tab-btn').forEach(btn => {
     azkiSyncFilterForTab(which);
     if (which === 'azki-payroll' && !azkiState.payroll.loaded) loadAzkiPayrollView();
     if (which === 'azki-active' && !azkiState.activeStatus.loaded) loadAzkiActiveStatusView();
+    if (which === 'azki-active') loadAgentTokenBanner();
     if (which === 'attendance') attOpen($('sup-view-attendance'));
     if (which === 'users') usersOpen($('sup-view-users'));
     if (which === 'run-history') runHistoryOpen($('sup-view-run-history'));
@@ -4040,6 +4043,58 @@ function renderAzkiCentersView() {
 // «مرکز صدور X | Y» ثبت شدن (از جدول center_operators_status که ورک‌فلوی n8n پر می‌کنه).
 // این تب بازه‌ی تاریخی نداره — همیشه آخرین وضعیت ثبت‌شده رو نشون می‌ده.
 // ============================================================
+// ---- توکن ازکی‌ایجنت: اگه منقضی شده (یا نزدیکه) هشدار بده و سرپرست بتونه توکن تازه رو paste کنه ----
+async function loadAgentTokenBanner() {
+  const box = document.getElementById('agent-token-banner');
+  if (!box || !azkiAllowed()) return;
+  let st = null;
+  try {
+    const r = await supabaseClient.rpc('agent_token_status');
+    if (r.error) throw r.error;
+    st = r.data;
+  } catch (e) { box.style.display = 'none'; return; }
+  const expMs = st && st.exp ? new Date(st.exp).getTime() : 0;
+  const left = expMs - Date.now();
+  const soon = left > 0 && left < 3 * 3600 * 1000;
+  if (!(st.expired || soon)) { box.style.display = 'none'; box.innerHTML = ''; return; }
+  const isSup = currentUserRole === 'supervisor';
+  const msg = !st.exists
+    ? 'توکن ازکی‌ایجنت ثبت نشده است.'
+    : st.expired
+      ? 'توکن ازکی‌ایجنت منقضی شده است؛ تا توکن تازه ثبت نشود، این تب به‌روز نمی‌شود.'
+      : `توکن ازکی‌ایجنت حدود ${faDigits(Math.max(1, Math.round(left / 60000)))} دقیقه‌ی دیگر منقضی می‌شود.`;
+  const how = isSup
+    ? `<div style="margin-top:6px;opacity:.85;">در پنل ازکی‌ایجنت لاگین کن (اگر اکستنشن نصب باشد خودش ثبت می‌کند)، یا توکن را اینجا paste کن:</div>
+       <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap;">
+         <input type="text" id="agent-token-input" dir="ltr" autocomplete="off" placeholder="eyJhbGciOi..." style="flex:1;min-width:220px;padding:8px 10px;border-radius:8px;border:1px solid var(--border,#ccc);background:var(--card,#fff);color:inherit;font-size:12px;">
+         <button type="button" id="agent-token-save" class="tab-btn" style="padding:8px 14px;">ثبت توکن</button>
+       </div>
+       <div id="agent-token-msg" style="margin-top:6px;font-size:12px;"></div>`
+    : '<div style="margin-top:6px;opacity:.85;">لطفاً به سرپرست اطلاع بده تا توکن را به‌روز کند.</div>';
+  box.style.cssText = 'display:block;margin:0 0 12px;padding:12px 14px;border-radius:10px;background:var(--danger-soft);border:1px solid var(--danger);font-size:13px;line-height:1.7;';
+  box.innerHTML = `<b>⚠ ${msg}</b>${how}`;
+  const btn = document.getElementById('agent-token-save');
+  if (btn) btn.onclick = async () => {
+    const inp = document.getElementById('agent-token-input');
+    const out = document.getElementById('agent-token-msg');
+    const v = (inp.value || '').trim();
+    if (!v) { out.textContent = 'توکن را paste کن.'; return; }
+    btn.disabled = true; out.textContent = 'در حال ثبت...';
+    const r = await supabaseClient.rpc('set_agent_token', { p_token: v });
+    btn.disabled = false;
+    if (r.error) {
+      const m = String(r.error.message || '');
+      out.textContent = /invalid_format/.test(m) ? 'فرمت توکن درست نیست (باید با eyJ شروع شود).'
+        : /expired_token/.test(m) ? 'این توکن خودش منقضی شده؛ توکن تازه بگیر.'
+        : /forbidden/.test(m) ? 'اجازه‌ی ثبت توکن را نداری.' : 'خطا: ' + m;
+      return;
+    }
+    inp.value = '';
+    box.style.display = 'none';
+    box.innerHTML = '';
+  };
+}
+
 async function loadAzkiActiveStatusView() {
   if (!azkiAllowed()) return;
   const { data, error } = await supabaseClient
