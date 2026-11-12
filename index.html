@@ -10018,6 +10018,7 @@ window.silentRun = async function (fn) {
 .as-sh-p{display:inline-flex;align-items:center;gap:5px;background:var(--surface);border:1px solid var(--line);border-radius:999px;padding:2px 10px;font-size:12px;color:var(--ink)}
 .as-sh-p small{color:var(--ink-faint);font-size:10.5px}
 .as-sh-e{color:var(--ink-faint);font-size:12px;padding:4px 2px}
+.as-pc{margin:0 0 12px}.as-pc-h{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:8px}.as-pc-h b{font-size:13.5px}.as-pc-h select{padding:3px 6px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit}.as-pc-h small{color:var(--ink-faint);font-size:11px}.as-pc .as-sh-l{max-height:320px}
 .as-fl{background:var(--surface-tint);border:1px solid var(--line);border-radius:var(--radius-sm);padding:8px 10px;margin-bottom:10px}
 .as-fl-h{display:flex;align-items:center;gap:8px;font-weight:800;font-size:13px;color:var(--ink);cursor:pointer;list-style:none;user-select:none}.as-fl-h::-webkit-details-marker{display:none}
 .as-fl-h b{margin-inline-start:auto;color:var(--accent-deep);font-size:12.5px}
@@ -10292,7 +10293,7 @@ function renderStatus(){
   const head=!wk?'<th>سنتر</th><th>کل</th><th>حاضر</th><th>ساعتی</th><th>مرخصی</th><th>اف</th><th>تعلیق</th><th>ثبت‌نشده</th><th>شیفت</th><th>پوشش</th>':'<th>سنتر</th>'+days.map((d,i)=>`<th>${DN[i]}<br><small>${fdate(d)}</small></th>`).join('');
   H.innerHTML=`<div class="att">${nextBar()}<div class="att-bar"><div class="att-nav"><button class="kb-btn ghost" id="s-prev" type="button">هفته قبل</button><span>${fdate(A.week)} تا ${fdate(w1)} ${fyear(w1)}</span><button class="kb-btn ghost" id="s-next" type="button">هفته بعد</button></div><span class="att-sp"></span>
     <div class="subtabs" style="margin:0"><button class="subtab-btn${wk?'':' active'}" data-sm="day" type="button">نمای روزانه</button><button class="subtab-btn${wk?' active':''}" data-sm="week" type="button">نمای هفتگی</button></div>
-    <button class="kb-btn ghost" id="s-carry" type="button" title="چیدمان آخرین هفته‌ی ثبت‌شده را روی جاهای خالی این هفته‌ی همه سنترها اعمال می‌کند">📋 اعمال چیدمان هفته قبل روی همه سنترها</button><button class="kb-btn ghost" id="s-all" type="button">باز/بسته کردن همه</button></div><div class="as-frow">${filterPanel}${agentPanel}</div><div class="as-aq-r" id="as-aq-r" style="display:none"></div>${dayBar}${cards}${shiftPanel}
+    <button class="kb-btn ghost" id="s-carry" type="button" title="چیدمان آخرین هفته‌ی ثبت‌شده را روی جاهای خالی این هفته‌ی همه سنترها اعمال می‌کند">📋 اعمال چیدمان هفته قبل روی همه سنترها</button><button class="kb-btn ghost" id="s-all" type="button">باز/بسته کردن همه</button></div><div class="as-frow">${filterPanel}${agentPanel}</div><div class="as-aq-r" id="as-aq-r" style="display:none"></div>${dayBar}${cards}${shiftPanel}${!wk?'<div id="as-pc" class="as-pc"></div>':''}
     <div class="as-w"><table class="as-tbl"><thead><tr>${head}</tr></thead><tbody>${rowsHtml}</tbody></table></div></div>`;
   const q=i=>H.querySelector(i); bindNext(H);
   q('#s-prev').onclick=()=>{A.week=add(A.week,-7);loadWeek()}; q('#s-next').onclick=()=>{A.week=add(A.week,7);loadWeek()};
@@ -10327,6 +10328,55 @@ function renderStatus(){
       :`<div class="as-w"><table class="as-tbl"><thead><tr><th>کارشناس</th>${days.map((d,i)=>`<th>${DN[i]}<br><small>${fdate(d)}</small></th>`).join('')}</tr></thead><tbody>${sh.map(r=>`<tr><td class="as-n"><b>${e(r.a.name)}</b><br><small>${e(r.c.name)}</small></td>${days.map(d=>`<td>${fmtC(r.c.id,r.a.id,d)}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`)};
   q('#as-aq').oninput=ev=>{A.st.aq=ev.target.value;renderAq()};
   renderAq();
+
+  // ===== کادر «حاضر در شیفت، ولی آنلاین نیست» (مقایسه‌ی حضور و غیاب با وضعیت لحظه‌ای پنل) در بازه‌ی ساعتی =====
+  if(!wk){
+    const box=q('#as-pc'); if(!box)return;
+    const PCN=v=>String(v==null?'':v).normalize('NFKC').replace(/[‌​‍‎‏ _\-]/g,' ').replace(/[ً-ٰٟـ]/g,'').replace(/[يى]/g,'ی').replace(/ك/g,'ک').replace(/[ۀە]/g,'ه').replace(/\s+/g,' ').trim();
+    const nowH=()=>{try{return +new Intl.DateTimeFormat('en-GB',{timeZone:'Asia/Tehran',hour:'2-digit',hour12:false}).format(new Date())%24}catch(_){return new Date().getHours()}};
+    if(A.st.pf==null||A.st.pDay!==day){const h=(day===t)?nowH():8;A.st.pf=h;A.st.pt=Math.min(24,h+1);A.st.pDay=day}
+    const ovl=(per,F,T)=>per.some(r=>{const s0=toM(r[0]);let e0=toE(r[1]);if(e0<=s0)e0+=1440;return s0<T&&e0>F});
+    const compute=()=>{
+      const F=A.st.pf*60,T=A.st.pt*60, pc=A.st.pc, seen=new Set(), out=[];
+      const byName=new Map(); ((pc&&pc.rows)||[]).forEach(r=>{const k=PCN(r.full_name);if(!byName.has(k))byName.set(k,[]);byName.get(k).push(r)});
+      VC().forEach(c=>(A.agents[c.id]||[]).forEach(a=>{
+        const x=(idx[c.id+'|'+day]||{})[a.id]; if(!x||!ACT.includes(x.status)||seen.has(a.id))return;
+        const per=(x.periods&&x.periods.length)?x.periods:[SHD[(x.shift||'morning')==='night'?'night':'morning']];
+        if(!ovl(per,F,T))return; seen.add(a.id);
+        let st='unk',act=false,cands=byName.get(PCN(a.name))||[];
+        if(cands.length>1){const cn=PCN(c.name),m=cands.filter(r=>{const k=PCN(r.center_name);return k&&(cn.includes(k)||k.includes(cn))});if(m.length)cands=m}
+        if(cands.length){act=cands.some(r=>r.is_active);st=cands.some(r=>r.is_active_to_issue)?'on':'off'}
+        out.push({name:a.name,center:c.name,per,hourly:x.status==='hourly',shift:x.shift,st,act});
+      }));
+      return out;
+    };
+    const draw=()=>{
+      const pc=A.st.pc, list=compute(), off=list.filter(r=>r.st==='off'), unk=list.filter(r=>r.st==='unk'), on=list.filter(r=>r.st==='on');
+      const srt=l=>l.sort((p,q2)=>p.center.localeCompare(q2.center,'fa')||p.name.localeCompare(q2.name,'fa'));
+      const chip=r=>`<span class="as-sh-p" title="${e(r.center)}">${e(r.name)}<small>${e(r.center)} · ${fmtP(r.per)}${r.st==='off'&&r.act?' · پنل فعال ولی آنلاین نیست':''}</small></span>`;
+      const grp=(title,l,color,open)=>`<details class="as-sh" style="--c:${color}"${open?' open':''}><summary class="as-sh-h"><span>${title}</span><b>${faDigits(l.length)} نفر</b><i class="as-sh-ar">▾</i></summary><div class="as-sh-l">${srt(l.slice()).map(chip).join('')||'<span class="as-sh-e">کسی نیست</span>'}</div></details>`;
+      const hs=(sel,from,to,v)=>`<select id="${sel}">${Array.from({length:to-from+1},(_,i)=>from+i).map(h=>`<option value="${h}"${h===v?' selected':''}>${faDigits(String(h).padStart(2,'0'))}:۰۰</option>`).join('')}</select>`;
+      const upd=pc&&pc.rows&&pc.rows.length?(()=>{const m=pc.rows.map(r=>r.updated_at).filter(Boolean).sort().pop();return m?new Date(m).toLocaleTimeString('fa-IR',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Tehran'}):''})():'';
+      const warn=day!==t?'<div class="as-sh-e">وضعیت پنل لحظه‌ای است و برای امروز معتبر است؛ برای روزهای دیگر فقط برنامه‌ی حضور با وضعیت فعلی پنل مقایسه می‌شود.</div>':'';
+      box.innerHTML=`<div class="as-pc-h"><b>🟢 حاضرها در بازه‌ی ساعتی و وضعیت پنلشان</b><span class="as-pc-f">از ${hs('pc-f',0,23,A.st.pf)} تا ${hs('pc-t',1,24,A.st.pt)}</span><button class="kb-btn ghost" id="pc-r" type="button">↻ به‌روزرسانی</button>${upd?`<small>آخرین بروزرسانی پنل: ${upd}</small>`:''}</div>${warn}`+
+        (!pc?'<div class="as-sh-e">در حال دریافت وضعیت پنل…</div>':pc.err?`<div class="as-sh-e">خطا در دریافت وضعیت پنل: ${e(pc.err.message||'')}</div>`:
+        `<div class="as-cards" style="margin-bottom:8px"><div class="as-card"><span>طبق برنامه در این بازه</span><b>${faDigits(list.length)}</b></div><div class="as-card" style="--c:#E0453F"><span>آنلاین نیستند</span><b>${faDigits(off.length)}</b></div><div class="as-card" style="--c:#1FA971"><span>آنلاین هستند</span><b>${faDigits(on.length)}</b></div><div class="as-card" style="--c:#B0892B"><span>پنل پیدا نشد</span><b>${faDigits(unk.length)}</b></div></div><div class="as-shifts">${grp('🔴 حاضر ولی آنلاین نیستند',off,'#E0453F',true)}${grp('🟢 حاضر و آنلاین',on,'#1FA971',false)}</div>${unk.length?grp('⚪ پنل در وضعیت پنل کارشناسان پیدا نشد',unk,'#B0892B',false):''}`);
+      const f=box.querySelector('#pc-f'),to=box.querySelector('#pc-t');
+      if(f)f.onchange=()=>{A.st.pf=+f.value;if(A.st.pt<=A.st.pf)A.st.pt=Math.min(24,A.st.pf+1);draw()};
+      if(to)to.onchange=()=>{A.st.pt=+to.value;if(A.st.pf>=A.st.pt)A.st.pf=Math.max(0,A.st.pt-1);draw()};
+      const r=box.querySelector('#pc-r'); if(r)r.onclick=()=>{A.st.pc=null;draw();ld()};
+    };
+    const ld=async()=>{
+      if(!(typeof azkiAllowed==='function'&&azkiAllowed())){box.innerHTML='';return}
+      const r=await supabaseClient.from('center_operators_status').select('full_name, center_name, is_active, is_active_to_issue, updated_at');
+      A.st.pc={rows:r.data||[],err:r.error,t:Date.now()}; if(A.st.pcTimer)clearTimeout(A.st.pcTimer);
+      if(A.body&&A.body.contains(box))draw();
+    };
+    if(typeof azkiAllowed==='function'&&azkiAllowed()){
+      draw();
+      if(!A.st.pc||Date.now()-A.st.pc.t>60000){ld()}
+    }
+  }
 }
 // کپی چیدمان آخرین هفته‌ی دارای ثبت (حداکثر ۴ هفته قبل) روی هفته‌ی داده‌شده، فقط برای جاهای خالی.
 // فقط «حضور» و «اف هفتگی» منتقل می‌شن؛ مرخصی، مرخصی ساعتی و تعلیق موردی‌ان و منتقل نمی‌شن.
