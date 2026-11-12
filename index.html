@@ -57,7 +57,7 @@
 <div class="bg-glow"></div>
 
 <script>window.__errs=[];window.addEventListener("error",function(e){try{window.__errs.push((e.message||"resource")+" @"+String(e.filename||(e.target&&(e.target.src||e.target.href))||"").split("/").slice(-2).join("/")+":"+(e.lineno||""))}catch(_){}},true);</script>
-<script>document.documentElement.classList.add('auth-pending');setTimeout(function(){document.documentElement.classList.remove('auth-pending');},8000);</script>
+<script>document.documentElement.classList.add('auth-pending');setTimeout(function(){var t=document.querySelector('#auth-splash div:last-child');if(t&&!window.__loginReady)t.textContent='اتصال کند است؛ هنوز در حال دریافت صفحه... لطفاً صبر کنید';},10000);setTimeout(function(){if(window.__loginReady)document.documentElement.classList.remove('auth-pending');else{var t=document.querySelector('#auth-splash div:last-child');if(t)t.innerHTML='صفحه کامل دریافت نشد. اتصال اینترنت/VPN را بررسی کنید و صفحه را رفرش کنید (Ctrl+F5)'}},45000);</script>
 <div id="auth-splash" aria-live="polite"><div class="auth-spinner"></div><div>در حال بارگذاری...</div></div>
 <div class="center-screen" id="login-screen">
   <div class="login-card">
