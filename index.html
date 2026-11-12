@@ -56,6 +56,7 @@
 
 <div class="bg-glow"></div>
 
+<script>window.__errs=[];window.addEventListener("error",function(e){try{window.__errs.push((e.message||"resource")+" @"+String(e.filename||(e.target&&(e.target.src||e.target.href))||"").split("/").slice(-2).join("/")+":"+(e.lineno||""))}catch(_){}},true);</script>
 <script>document.documentElement.classList.add('auth-pending');setTimeout(function(){document.documentElement.classList.remove('auth-pending');},8000);</script>
 <div id="auth-splash" aria-live="polite"><div class="auth-spinner"></div><div>در حال بارگذاری...</div></div>
 <div class="center-screen" id="login-screen">
@@ -67,7 +68,7 @@
     <p class="sub">با نام کاربری و رمز عبورتان وارد شوید</p>
     <div class="error-msg" id="login-error"></div>
     <div class="ok-msg" id="login-ok"></div>
-    <form id="login-form" method="post" action="javascript:void(0)" onsubmit="if(!window.__loginReady){var e=document.getElementById('login-error');if(e){e.textContent='صفحه کامل بارگذاری نشده؛ با Ctrl+F5 (در موبایل: بستن و باز کردن دوباره‌ی صفحه) رفرش کنید';e.style.display='block'}return false}">
+    <form id="login-form" method="post" action="javascript:void(0)" onsubmit="if(!window.__loginReady){var e=document.getElementById('login-error');if(e){e.textContent='صفحه کامل بارگذاری نشده؛ با Ctrl+F5 رفرش کنید. اگر درست نشد، از این پیام عکس بگیرید و بفرستید → '+(window.__errs||[]).slice(0,3).join(' | ')+' | '+navigator.userAgent;e.style.display='block'}return false}">
       <div class="field">
         <label for="username">نام کاربری</label>
         <input type="text" id="username" autocomplete="username" required>
