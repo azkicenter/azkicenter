@@ -10,7 +10,7 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <link rel="preload" href="assets/app.css?v=4997dce7" as="style">
-<link rel="preload" href="assets/js-1.js?v=35161a93" as="script">
+<link rel="preload" href="assets/js-1.js?v=6fe2bfdc" as="script">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -67,7 +67,7 @@
     <p class="sub">با نام کاربری و رمز عبورتان وارد شوید</p>
     <div class="error-msg" id="login-error"></div>
     <div class="ok-msg" id="login-ok"></div>
-    <form id="login-form">
+    <form id="login-form" method="post" action="javascript:void(0)" onsubmit="if(!window.__loginReady){var e=document.getElementById('login-error');if(e){e.textContent='صفحه کامل بارگذاری نشده؛ با Ctrl+F5 (در موبایل: بستن و باز کردن دوباره‌ی صفحه) رفرش کنید';e.style.display='block'}return false}"
       <div class="field">
         <label for="username">نام کاربری</label>
         <input type="text" id="username" autocomplete="username" required>
@@ -79,7 +79,7 @@
       <button type="submit" class="btn-primary" id="login-btn">ورود</button>
     </form>
     <div class="chpw-switch"><a href="#" id="chpw-open">تغییر رمز عبور</a></div>
-    <form id="chpw-form" style="display:none" autocomplete="off">
+    <form id="chpw-form" style="display:none" autocomplete="off" method="post" action="javascript:void(0)">
       <div class="field">
         <label for="chpw-user">نام کاربری</label>
         <input type="text" id="chpw-user" autocomplete="username" required>
@@ -809,7 +809,7 @@
   </main>
 </div>
 
-<script src="assets/js-1.js?v=35161a93"></script>
+<script src="assets/js-1.js?v=6fe2bfdc"></script>
 
 <script src="assets/js-2.js?v=9adb7db6"></script>
 

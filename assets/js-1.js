@@ -122,6 +122,7 @@ async function cachedFetch(input, init) {
 const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, { global: { fetch: cachedFetch } });
 supabaseClient.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT') { try { Object.keys(localStorage).filter(k => k.indexOf(FC_LS) === 0).forEach(k => localStorage.removeItem(k)); } catch (e) { } FC.mem.clear(); FC.loadedFor = null; } });
 
+window.__loginReady = true;
 const loginScreen = document.getElementById('login-screen');
 const appScreen = document.getElementById('app-screen');
 const loginForm = document.getElementById('login-form');
