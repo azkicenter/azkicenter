@@ -7999,7 +7999,7 @@ async function init(){
   else if(A.role==='leader'){const r=await supabaseClient.from('leader_centers').select('center_id').eq('leader_id',A.me);ids=(r.data||[]).map(x=>x.center_id)}
   else{const r=await supabaseClient.from('profiles').select('id').eq('role','center').limit(2000);ids=(r.data||[]).map(x=>x.id)}
   const p=ids.length?await supabaseClient.from('profiles').select('id, full_name, status').in('id',ids):{data:[]};
-  A.centers=(p.data||[]).filter(x=>!(A.role==='leader'&&x.status==='disabled')).map(x=>({id:x.id,name:x.full_name||'—'})).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
+  A.centers=(p.data||[]).filter(x=>x.status!=='disabled').map(x=>({id:x.id,name:x.full_name||'—'})).sort((a,b)=>a.name.localeCompare(b.name,'fa'));
   A.sel=A.centers[0]&&A.centers[0].id;
 }
 async function nextCount(ids){
@@ -8088,10 +8088,10 @@ function renderSet(){
 
 async function loadStatus(){
   if(A.role==='leader'&&!A.allCenters){
-    const r=await supabaseClient.from('profiles').select('id, full_name').eq('role','center').limit(2000);
+    const r=await supabaseClient.from('profiles').select('id, full_name, status').eq('role','center').limit(2000);
     const own=new Set((A.centers||[]).map(c=>c.id)), m=new Map();
     (A.centers||[]).forEach(c=>m.set(c.id,c));
-    (r.data||[]).forEach(x=>{if(!m.has(x.id))m.set(x.id,{id:x.id,name:x.full_name||'—'})});
+    (r.data||[]).forEach(x=>{if(x.status!=='disabled'&&!m.has(x.id))m.set(x.id,{id:x.id,name:x.full_name||'—'})});
     A.allCenters=[...m.values()].sort((x,y)=>(own.has(y.id)-own.has(x.id))||x.name.localeCompare(y.name,'fa'));
   }
   const ids=SC().map(c=>c.id), w1=add(A.week,6);
