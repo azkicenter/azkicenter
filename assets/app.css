@@ -2659,3 +2659,17 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .rh-tbl tbody tr{content-visibility:auto;contain-intrinsic-size:auto 38px}
 /* ۵) سایه‌های سنگین کارت‌ها هنگام اسکرول فعال تغییر نکنند */
 .list-card,.team-item,.leader-item,.row-item,.bug-item{transition-property:background-color,border-color,opacity,transform}
+
+.kpi-switch{display:inline-flex;gap:4px;padding:4px;background:rgba(128,128,128,.15);border-radius:10px;margin-bottom:14px}
+.kpi-sw-btn{border:0;background:transparent;padding:7px 18px;border-radius:8px;font:inherit;cursor:pointer;color:inherit}
+.kpi-sw-btn.is-on{background:#fff;color:#111;box-shadow:0 1px 3px rgba(0,0,0,.15);font-weight:700}
+.kpi-range{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.kpi-range input,.kpi-tbl input{font:inherit;border:1px solid rgba(128,128,128,.4);border-radius:8px;padding:6px 8px;background:transparent;color:inherit;text-align:center;direction:ltr;width:90px}
+.kpi-tbl{width:100%;border-collapse:collapse;margin-bottom:6px}
+.kpi-tbl th,.kpi-tbl td{padding:8px 6px;border-bottom:1px solid rgba(128,128,128,.2);text-align:center;font-size:13px}
+.kpi-tbl td:first-child{text-align:right;font-weight:600}
+.kpi-tbl input{width:78px}
+.kpi-tbl tfoot td{font-weight:700;border-bottom:0}
+.kpi-wrap{overflow-x:auto}
+.kpi-grp{margin-bottom:18px}
+.kpi-grp h3{margin:0 0 8px;font-size:15px}
