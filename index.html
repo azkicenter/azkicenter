@@ -10140,22 +10140,28 @@ async function centerSettingsRender(host) {
     const p = t => { const m = en(t).split(/[\/\-]/).map(Number); return m.length === 3 && m.every(Number.isFinite) ? m : null; };
     const f = p(st.from), t = p(st.to);
     if (!f || !t) { note.textContent = 'تاریخ را به شکل ۱۴۰۵/۰۷/۲۱ وارد کنید تا OCT کل سنترها محاسبه شود.'; return; }
-    const seq = ++octSeq; note.textContent = 'در حال محاسبه‌ی OCT کل سنترها…';
+    const seq = ++octSeq; note.textContent = 'در حال محاسبه‌ی OCT و درصد صدور کل بازه…';
     try {
       const d1 = jalaliToGregorian(f[0], f[1], f[2]), d2 = jalaliToGregorian(t[0], t[1], t[2]);
       const { data, error } = await fetchAllRows((from, to) => supabaseClient.from(TABLE_AZKI_PERIOD)
-        .select('report_date, center_orders, oct_avg_hours').eq('company_scope', 'کل').not('oct_avg_hours', 'is', null)
+        .select('report_date, total_orders, center_orders, oct_avg_hours').eq('company_scope', 'کل')
         .gte('report_date', d1).lte('report_date', d2).order('report_date', { ascending: true }).range(from, to));
       if (seq !== octSeq) return;
       if (error) throw new Error(error.message);
-      let sw = 0, sv = 0, s1 = 0, n = 0;
-      (data || []).forEach(r => { const v = Number(r.oct_avg_hours), w = Number(r.center_orders) > 0 ? Number(r.center_orders) : 0; sw += w; sv += v * w; s1 += v; n++; });
-      if (!n) { note.textContent = 'برای این بازه OCT ثبت نشده است؛ مقدار را دستی وارد کنید.'; return; }
-      const avg = sw > 0 ? sv / sw : s1 / n, val = Math.round(avg * 100) / 100;
-      st.v['ce3v'] = String(val); save();
-      const inpEl = document.querySelector('input[data-kpi="ce3v"]'); if (inpEl) inpEl.value = String(val);
-      calc();
-      note.textContent = `OCT per Center (میانگین وزنی OCT همه‌ی سنترها در کل بازه): ${faDigits(val)} ساعت — از ${faDigits(n)} روز داده. خودکار پر شد؛ اگر خواستید می‌توانید دستی عوض کنید.`;
+      let sw = 0, sv = 0, s1 = 0, n = 0, tot = 0, cen = 0;
+      (data || []).forEach(r => {
+        tot += Number(r.total_orders) || 0; cen += Number(r.center_orders) || 0;
+        if (r.oct_avg_hours == null) return;
+        const v = Number(r.oct_avg_hours), w = Number(r.center_orders) > 0 ? Number(r.center_orders) : 0; sw += w; sv += v * w; s1 += v; n++;
+      });
+      const put = (k, val) => { st.v[k] = String(val); const el = document.querySelector('input[data-kpi="' + k + '"]'); if (el) el.value = String(val); };
+      const parts = [];
+      if (n) { const val = Math.round((sw > 0 ? sv / sw : s1 / n) * 100) / 100; put('ce3v', val); parts.push(`OCT per Center (میانگین وزنی OCT همه‌ی سنترها در کل بازه): ${faDigits(val)} ساعت`); }
+      else parts.push('OCT برای این بازه ثبت نشده؛ دستی وارد کنید');
+      if (tot > 0) { const pc = Math.round(cen / tot * 10000) / 100; put('ce4v', pc); parts.push(`درصد صدور کل بازه: ${faDigits(pc)}٪ (${faDigits(fmt(cen))} از ${faDigits(fmt(tot))})`); }
+      else parts.push('درصد صدور برای این بازه ثبت نشده؛ دستی وارد کنید');
+      save(); calc();
+      note.textContent = parts.join(' — ') + ` — از ${faDigits((data || []).length)} روز داده. خودکار پر شد؛ اگر خواستید می‌توانید دستی عوض کنید.`;
     } catch (e) { if (seq === octSeq) note.textContent = 'خطا در محاسبه‌ی OCT: ' + e.message + ' — مقدار را دستی وارد کنید.'; }
   }
   document.addEventListener('click', ev => {
