@@ -2760,6 +2760,7 @@ async function fetchLeaderCenterKeys() {
 async function loadAzkiPayrollView() {
   if (!azkiAllowed()) return;
   const bounds = getAzkiBounds();
+  if (window.BK_RUN) window.BK_RUN();
   document.getElementById('azki-payroll-label').textContent = azkiRangeText(bounds);
   renderAzkiRateRows();
 
@@ -10106,23 +10107,14 @@ async function centerSettingsRender(host) {
   let seq = 0;
   function render() {
     const host = document.getElementById('bk-pane'); if (!host) return;
-    if (host.dataset.init) return; host.dataset.init = '1';
-    const d = defRange();
-    host.innerHTML = `
-      <div class="bk-range">
-        <label>از تاریخ<input id="bk-from" value="${d.from}" inputmode="numeric" dir="ltr" placeholder="1405/07/21"></label>
-        <label>تا تاریخ<input id="bk-to" value="${d.to}" inputmode="numeric" dir="ltr" placeholder="1405/08/20"></label>
-        <button class="um-btn" id="bk-go" type="button">محاسبه</button>
-      </div>
-      <div id="bk-out" class="bk-out"><div class="empty-state">بازه را وارد کن و «محاسبه» را بزن</div></div>`;
-    host.querySelector('#bk-go').onclick = run;
-    host.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') run(); }));
+    if (!host.dataset.init) { host.dataset.init = '1'; host.innerHTML = '<div id="bk-out" class="bk-out"></div>'; }
     run();
   }
   async function run() {
     const out = document.getElementById('bk-out'); if (!out) return;
-    const a = parseJ(document.getElementById('bk-from').value), b = parseJ(document.getElementById('bk-to').value);
-    if (!a || !b || a.g > b.g) { out.innerHTML = '<div class="azki-error">تاریخ‌ها را به شکل 1405/07/21 وارد کن (تاریخ شروع قبل از پایان باشد)</div>'; return; }
+    const bd = getAzkiBounds();
+    const a = { g: bd.startDate, j: bd.startLabel }, b = { g: bd.endDate, j: bd.endLabel };
+    if (!a.g || !b.g || a.g > b.g) { out.innerHTML = '<div class="azki-error" style="display:block">بازه‌ی تاریخ بالای صفحه معتبر نیست</div>'; return; }
     const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
     try {
       let [pr, oc] = await Promise.all([
@@ -10151,6 +10143,7 @@ async function centerSettingsRender(host) {
         ${warn.length ? '<div class="azki-error" style="display:block">' + warn.join('<br>') + '</div>' : ''}`;
     } catch (e) { if (my === seq) out.innerHTML = '<div class="azki-error" style="display:block">خطا: ' + String(e.message || e).replace(/[<>&]/g, '') + '</div>'; }
   }
+  window.BK_RUN = () => { const p = document.getElementById('bk-pane'); if (p && p.style.display !== 'none' && p.dataset.init) run(); };
   document.addEventListener('click', ev => {
     const b = ev.target.closest && ev.target.closest('.bk-sw-btn'); if (!b) return;
     const k = b.dataset.bkView === 'kpi';
