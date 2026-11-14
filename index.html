@@ -10125,11 +10125,13 @@ async function centerSettingsRender(host) {
     if (!a || !b || a.g > b.g) { out.innerHTML = '<div class="azki-error">تاریخ‌ها را به شکل 1405/07/21 وارد کن (تاریخ شروع قبل از پایان باشد)</div>'; return; }
     const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
     try {
-      const [pr, oc] = await Promise.all([
+      let [pr, oc] = await Promise.all([
         fetchAllRows((f, t) => supabaseClient.from(TABLE_AZKI_PERIOD).select('report_date, total_orders, center_orders').eq('company_scope', 'کل').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t))
       ]);
       if (my !== seq) return;
+      if (pr.error) throw pr.error; if (oc.error) throw oc.error;
+      pr = pr.data || []; oc = oc.data || [];
       const days = (Date.UTC(...b.g.split('-').map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.g.split('-').map((x, i) => i === 1 ? x - 1 : +x))) / 864e5 + 1;
       let tot = 0, cen = 0; const totBy = {};
       pr.forEach(r => { const t = Number(r.total_orders) || 0, c = Number(r.center_orders) || 0; tot += t; cen += c; totBy[r.report_date] = t; });
