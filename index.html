@@ -10117,26 +10117,31 @@ async function centerSettingsRender(host) {
     if (!a.g || !b.g || a.g > b.g) { out.innerHTML = '<div class="azki-error" style="display:block">بازه‌ی تاریخ بالای صفحه معتبر نیست</div>'; return; }
     const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
     try {
-      let [pr, oc] = await Promise.all([
+      let [pr, oc, u1] = await Promise.all([
         fetchAllRows((f, t) => supabaseClient.from(TABLE_AZKI_PERIOD).select('report_date, total_orders, center_orders').eq('company_scope', 'کل').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
-        fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t))
+        fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
+        fetchAllRows((f, t) => supabaseClient.from('kpi_under1h_daily').select('report_date, total_orders, under_1h_orders').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t))
       ]);
       if (my !== seq) return;
-      if (pr.error) throw pr.error; if (oc.error) throw oc.error;
-      pr = pr.data || []; oc = oc.data || [];
+      if (pr.error) throw pr.error; if (oc.error) throw oc.error; if (u1.error) throw u1.error;
+      pr = pr.data || []; oc = oc.data || []; u1 = u1.data || [];
       const days = (Date.UTC(...b.g.split('-').map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.g.split('-').map((x, i) => i === 1 ? x - 1 : +x))) / 864e5 + 1;
       let tot = 0, cen = 0; const totBy = {};
       pr.forEach(r => { const t = Number(r.total_orders) || 0, c = Number(r.center_orders) || 0; tot += t; cen += c; totBy[r.report_date] = t; });
       let ws = 0, wn = 0, ss = 0, sn = 0;
       oc.forEach(r => { const v = Number(r.oct_avg_hours); if (!isFinite(v)) return; const w = totBy[r.report_date] || 0; ws += v * w; wn += w; ss += v; sn++; });
+      let ut = 0, uu = 0; u1.forEach(r => { ut += Number(r.total_orders) || 0; uu += Number(r.under_1h_orders) || 0; });
+      const upct = ut ? uu / ut * 100 : null;
       const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
       const warn = [];
       if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
+      if (u1.length < days) warn.push('درصد صدور زیر یک ساعت برای ' + faDigits(days - u1.length) + ' روز از بازه ثبت نشده است (ورک‌فلو KPI را اجرا کن)');
       if (sn < days) warn.push('OCT برای ' + faDigits(days - sn) + ' روز از بازه ثبت نشده است (اگر ورک‌فلو KPI اجرا نشده، یک‌بار اجرایش کن)');
       out.innerHTML = `
         <div class="period-label">${faDigits(a.j)} تا ${faDigits(b.j)} — ${faDigits(days)} روز · فقط شخص ثالث خودرو و موتور</div>
         <div class="summary-row">
           <div class="summary-card"><div class="label">درصد صدور مراکز صدور از کل</div><div class="value">${pct == null ? '—' : f2(pct) + '٪'}</div><div class="bk-sub">${f0(cen)} از ${f0(tot)} سفارش</div></div>
+          <div class="summary-card"><div class="label">درصد صدور زیر یک ساعت (OCT)</div><div class="value">${upct == null ? '—' : f2(upct) + '٪'}</div><div class="bk-sub">${f0(uu)} از ${f0(ut)} سفارش · کل (مرکز + فریلنسر)</div></div>
           <div class="summary-card"><div class="label">OCT کل (ساعت) · وزنی</div><div class="value">${octW == null ? '—' : f2(octW)}</div><div class="bk-sub">میانگین ساده‌ی روزها: ${octS == null ? '—' : f2(octS)}</div></div>
         </div>
         <div class="bk-note">OCT از کارت ۲۳۶۵۳ است (بدون الحاقیه، تاریخ بستن، همه‌ی اپراتورها بدون جداسازی مرکز/فریلنسر) و با تعداد صدور همان روز وزن‌دهی شده. نام‌هایی که «مرکز صدور» دارند مرکز حساب می‌شوند و بقیه فریلنسر.</div>
