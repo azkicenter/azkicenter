@@ -10155,7 +10155,15 @@ async function centerSettingsRender(host) {
     document.querySelectorAll('.bk-sw-btn').forEach(x => x.classList.toggle('is-on', x === b));
     document.getElementById('azki-pay-main').style.display = k ? 'none' : '';
     document.getElementById('bk-pane').style.display = k ? '' : 'none';
-    if (k) render();
+    if (k) {
+      // اولین بازشدن: بازه‌ی بالای صفحه روی آخرین دوره‌ی ۲۱ تا ۲۰ تنظیم می‌شود؛ بعد از آن هرچه کاربر انتخاب کند می‌ماند
+      if (!window.__bkRangeInit) {
+        window.__bkRangeInit = true;
+        const d = defRange(), P = t => t.split('/').map(Number);
+        try { azkiSetDate('from', P(d.from)); azkiSetDate('to', P(d.to)); azkiApplyRange(); } catch (e) { console.warn(e); }
+      }
+      render();
+    }
   });
 })();
 </script>
