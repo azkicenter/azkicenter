@@ -10123,7 +10123,7 @@ async function centerSettingsRender(host) {
         fetchAllRows((f, t) => supabaseClient.from('kpi_under1h_daily').select('report_date, total_orders, under_1h_orders').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('kpi_amount_daily').select('report_date, center_amount, freelancer_amount').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('discrepancy_errors').select('report_date, issuer_user, status, amount').gte('report_date', a.j).lte('report_date', b.j).range(f, t)),
-        fetchAllRows((f, t) => supabaseClient.from('kpi_sameshift_daily').select('report_date, freelancer_orders, same_shift_orders').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
+        fetchAllRows((f, t) => supabaseClient.from('kpi_sameshift_daily').select('report_date, freelancer_orders, same_shift_orders, morning_orders, morning_same, evening_orders, evening_same').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         (() => { const sp = parseJalaliParts(a.j), ps = periodStartSortOfJalali(sp.jy, sp.jm, sp.jd); return supabaseClient.from(TABLE_CENTER_SLA).select('center_name, avg_issuance_minutes, orders_count').eq('period_start_sort', ps).then(r => Object.assign(r, { ps })); })()
       ]);
       if (my !== seq) return;
@@ -10151,6 +10151,8 @@ async function centerSettingsRender(host) {
       const upct = ut ? uu / ut * 100 : null;
       let sf = 0, sy = 0; ss.forEach(r => { sf += Number(r.freelancer_orders) || 0; sy += Number(r.same_shift_orders) || 0; });
       const spct = sf ? sy / sf * 100 : null;
+      let mo = 0, ms = 0, eo = 0, es = 0; ss.forEach(r => { mo += Number(r.morning_orders) || 0; ms += Number(r.morning_same) || 0; eo += Number(r.evening_orders) || 0; es += Number(r.evening_same) || 0; });
+      const mpct = mo ? ms / mo * 100 : null, epct = eo ? es / eo * 100 : null;
       const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
       const warn = [];
       if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
@@ -10165,6 +10167,8 @@ async function centerSettingsRender(host) {
           <div class="summary-card"><div class="label">درصد صدور مراکز صدور از کل</div><div class="value">${pct == null ? '—' : f2(pct) + '٪'}</div><div class="bk-sub">${f0(cen)} از ${f0(tot)} سفارش</div></div>
           <div class="summary-card"><div class="label">درصد صدور زیر یک ساعت (OCT)</div><div class="value">${upct == null ? '—' : f2(upct) + '٪'}</div><div class="bk-sub">${f0(uu)} از ${f0(ut)} سفارش · کل (مرکز + فریلنسر)</div></div>
           <div class="summary-card"><div class="label">درصد same shift فریلنسرها</div><div class="value">${spct == null ? '—' : f2(spct) + '٪'}</div><div class="bk-sub">${f0(sy)} از ${f0(sf)} سفارش · خرید و صدور در یک شیفت</div></div>
+          <div class="summary-card"><div class="label">same shift · شیفت صبح (۸ تا ۱۶)</div><div class="value">${mpct == null ? '—' : f2(mpct) + '٪'}</div><div class="bk-sub">${f0(ms)} از ${f0(mo)} سفارش صادرشده در صبح</div></div>
+          <div class="summary-card"><div class="label">same shift · شیفت عصر (۱۶ تا ۲۴)</div><div class="value">${epct == null ? '—' : f2(epct) + '٪'}</div><div class="bk-sub">${f0(es)} از ${f0(eo)} سفارش صادرشده در عصر</div></div>
           <div class="summary-card"><div class="label">نرخ باگ مراکز صدور</div><div class="value">${bugC == null ? '—' : f4(bugC) + '٪'}</div><div class="bk-sub">خطا ${f0(eC)} (${f0(eCn)} مورد) از ${f0(aC)}</div></div>
           <div class="summary-card"><div class="label">نرخ باگ فریلنسرها</div><div class="value">${bugF == null ? '—' : f4(bugF) + '٪'}</div><div class="bk-sub">خطا ${f0(eF)} (${f0(eFn)} مورد) از ${f0(aF)}</div></div>
           <div class="summary-card"><div class="label">OCT per Center (دقیقه)</div><div class="value">${slaAvg == null ? '—' : f2(slaAvg)}</div><div class="bk-sub">میانگین SLA مراکز صدور · ${f0(sn2)} سفارش · ${f0(sl.length)} مرکز</div></div>
