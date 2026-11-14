@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=f65b0f4a" as="style">
+<link rel="preload" href="assets/app.css?v=f3984e4a" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=f65b0f4a"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=f3984e4a"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -10111,6 +10111,30 @@ async function centerSettingsRender(host) {
     if (!host.dataset.init) { host.dataset.init = '1'; host.innerHTML = '<div id="bk-out" class="bk-out"></div>'; }
     run();
   }
+  // قوانین امتیازدهی KPI — عیناً از شیت «KPI - تیم صدور» (تب «صدور ثالث 1405.08»): امتیاز = clamp((x − a) / (b − a))؛ a = نقطه‌ی صفر، b = نقطه‌ی ۱۰۰٪؛ وزن هر شاخص ۲۰٪ و «امتیاز کل» = جمع امتیازها × ۰٫۲
+  const KPI_RULES = {
+    free: { title: 'تیم صدور ثالث (فریلنسر)', items: [
+      { k: 'oct', l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bug', l: 'Bug Rate فریلنسر', u: '٪', a: 0.06, b: 0.03, d: 4 },
+      { k: 'u1h', l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octAgent', l: 'OCT per Agent', u: 'دقیقه', a: 40, b: 30, manual: true },
+      { k: 'same', l: 'Same Shift', u: '٪', a: 75, b: 85 }] },
+    cen: { title: 'تیم صدور سنتر', items: [
+      { k: 'oct', l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bugC', l: 'Bug Rate مراکز', u: '٪', a: 0.06, b: 0.03, d: 4 },
+      { k: 'u1h', l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octC', l: 'OCT per Center', u: 'دقیقه', a: 40, b: 30 },
+      { k: 'issu', l: 'Issuance Rate (سهم صدور مراکز)', u: '٪', a: 15, b: 30 }] }
+  };
+  const kScore = (x, r) => (x == null || !isFinite(x)) ? null : Math.max(0, Math.min(1, (x - r.a) / (r.b - r.a)));
+  function kpiTeamHtml(team, vals) {
+    const T = KPI_RULES[team]; let sum = 0, miss = 0;
+    const rows = T.items.map(r => {
+      const x = vals[r.k], sc = kScore(x, r); if (sc == null) miss++; else sum += sc;
+      const pc = sc == null ? 0 : Math.round(sc * 100), vtxt = x == null ? '—' : (r.d ? faDigits(x.toFixed(r.d)) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
+      const tgt = faDigits(r.a) + ' ← ۰٪ · ۱۰۰٪ → ' + faDigits(r.b);
+      const inp = r.manual ? ' <input class="bk-man" data-bk-man="' + r.k + '" type="number" step="0.01" placeholder="ورود دستی" value="' + (x == null ? '' : x) + '">' : '';
+      return '<div class="bk-kr"><div class="bk-kt"><span>' + r.l + '</span><b>' + vtxt + inp + '</b></div><div class="bk-bar" title="' + tgt + '"><i style="width:' + pc + '%" class="' + (pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo') + '"></i></div><div class="bk-ks"><span>' + tgt + '</span><b>' + faDigits(pc) + '٪</b></div></div>';
+    }).join('');
+    const tot = Math.round(sum * 0.2 * 100);
+    return '<div class="bk-team"><div class="bk-team-h">' + T.title + '</div>' + rows + '<div class="bk-total"><span>امتیاز کل (وزن هر شاخص ۲۰٪)' + (miss ? ' · ' + faDigits(miss) + ' شاخص بدون مقدار' : '') + '</span><b>' + faDigits(tot) + '٪</b></div><div class="bk-bar big"><i style="width:' + tot + '%" class="' + (tot >= 70 ? 'hi' : tot >= 40 ? 'mid' : 'lo') + '"></i></div></div>';
+  }
   async function run() {
     const out = document.getElementById('bk-out'); if (!out) return;
     const bd = getAzkiBounds();
@@ -10155,6 +10179,9 @@ async function centerSettingsRender(host) {
       let shMo = 0, shMs = 0, shEo = 0, shEs = 0; shR.forEach(r => { shMo += Number(r.morning_orders) || 0; shMs += Number(r.morning_same) || 0; shEo += Number(r.evening_orders) || 0; shEs += Number(r.evening_same) || 0; });
       const mpct = shMo ? shMs / shMo * 100 : null, epct = shEo ? shEs / shEo * 100 : null;
       const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
+      let manAgent = null; try { const v = localStorage.getItem('bk_octAgent'); if (v !== null && v !== '' && isFinite(+v)) manAgent = +v; } catch (_) {}
+      const octMin = octW == null ? null : octW * 60;
+      const kv = { oct: octMin, bug: bugF, bugC: bugC, u1h: upct, octAgent: manAgent, same: spct, octC: slaAvg, issu: pct };
       const warn = [];
       if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
       if (!fullPeriod) warn.push('OCT per Center برای کل دوره‌ی حقوقی ' + faDigits(pStartLbl) + ' تا ' + faDigits(pEndLbl) + ' است (SLA مراکز فقط به‌صورت دوره‌ای ذخیره می‌شود)');
@@ -10175,10 +10202,16 @@ async function centerSettingsRender(host) {
           <div class="summary-card"><div class="label">OCT per Center (دقیقه)</div><div class="value">${slaAvg == null ? '—' : f2(slaAvg)}</div><div class="bk-sub">میانگین SLA مراکز صدور · ${f0(sn2)} سفارش · ${f0(sl.length)} مرکز</div></div>
           <div class="summary-card"><div class="label">OCT کل (ساعت) · وزنی</div><div class="value">${octW == null ? '—' : f2(octW)}</div><div class="bk-sub">میانگین ساده‌ی روزها: ${octS == null ? '—' : f2(octS)}</div></div>
         </div>
+        <div class="bk-kteams">${kpiTeamHtml('free', kv)}${kpiTeamHtml('cen', kv)}</div>
         <div class="bk-note">OCT از کارت ۲۳۶۵۳ است (بدون الحاقیه، تاریخ بستن، همه‌ی اپراتورها بدون جداسازی مرکز/فریلنسر) و با تعداد صدور همان روز وزن‌دهی شده. نام‌هایی که «مرکز صدور» دارند مرکز حساب می‌شوند و بقیه فریلنسر. same shift: شیفت صبح ۸ تا ۱۶ و عصر ۱۶ تا ۲۴؛ سفارش باید در همان روز و همان شیفتِ خرید صادر شده باشد (مرکز، صدور حضوری و ساعت ۰ تا ۸ حذف/بی‌شیفت). از کارت ۱۷۲۲۹ و بر اساس روز صدور.</div>
         ${warn.length ? '<div class="azki-error" style="display:block">' + warn.join('<br>') + '</div>' : ''}`;
     } catch (e) { if (my === seq) out.innerHTML = '<div class="azki-error" style="display:block">خطا: ' + String(e.message || e).replace(/[<>&]/g, '') + '</div>'; }
   }
+  document.addEventListener('change', ev => {
+    const i = ev.target && ev.target.closest && ev.target.closest('[data-bk-man]'); if (!i) return;
+    try { localStorage.setItem('bk_octAgent', i.value); } catch (_) {}
+    run();
+  });
   window.BK_RUN = () => { const p = document.getElementById('bk-pane'); if (p && p.style.display !== 'none' && p.dataset.init) run(); };
   document.addEventListener('click', ev => {
     const b = ev.target.closest && ev.target.closest('.bk-sw-btn'); if (!b) return;
