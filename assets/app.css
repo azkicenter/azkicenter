@@ -2710,3 +2710,10 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .bk-tbl td.bk-sc span{font-size:12px;font-weight:600}
 .bk-tbl tfoot td{font-weight:700;border-bottom:0;text-align:start}
 .bk-tbl tfoot td.bk-sc,.bk-tbl tfoot td:last-child{text-align:center}
+
+.bk-tabs{display:flex;gap:8px;margin:0 0 14px}
+.bk-tab{font:inherit;padding:7px 16px;border-radius:999px;border:1px solid rgba(128,128,128,.35);background:transparent;color:inherit;cursor:pointer}
+.bk-tab.is-on{background:var(--accent,#2563eb);color:#fff;border-color:transparent}
+.bk-set-tbl input,.bk-set-tbl select{font:inherit;padding:4px 6px;border:1px solid rgba(128,128,128,.4);border-radius:6px;background:transparent;color:inherit;width:100%;box-sizing:border-box}
+.bk-set-tbl td:first-child input{min-width:180px}
+.bk-base input{font:inherit;padding:4px 8px;border:1px solid rgba(128,128,128,.4);border-radius:6px;background:transparent;color:inherit;width:170px}

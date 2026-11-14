@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=53b5adcb" as="style">
+<link rel="preload" href="assets/app.css?v=989b99b7" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=53b5adcb"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=989b99b7"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -756,7 +756,7 @@
       <div id="sup-view-azki-payroll" style="display:none;">
         <div class="bk-switch" id="bk-switch">
           <button type="button" class="bk-sw-btn is-on" data-bk-view="pay">حقوق</button>
-          <button type="button" class="bk-sw-btn" data-bk-view="kpi">بستن KPI</button>
+          <button type="button" class="bk-sw-btn" data-bk-view="kpi">KPI</button>
         </div>
         <div id="bk-pane" style="display:none;"></div>
         <div id="azki-pay-main">
@@ -10106,32 +10106,86 @@ async function centerSettingsRender(host) {
     return { from: sy + '/' + p(sm) + '/21', to: ey + '/' + p(em) + '/20' };
   };
   let seq = 0;
+  let bkTab = 'calc';
+  const KPI_SRC = { oct: 'OCT کل (دقیقه)', bug: 'Bug Rate فریلنسر', bugC: 'Bug Rate مراکز صدور', u1h: 'درصد صدور زیر ۱ ساعت', octAgent: 'OCT per Agent (میانگین ورودی افراد)', same: 'Same Shift', octC: 'OCT per Center', issu: 'Issuance Rate (سهم صدور مراکز)', manual: 'مقدار دستی' };
   function render() {
     const host = document.getElementById('bk-pane'); if (!host) return;
-    if (!host.dataset.init) { host.dataset.init = '1'; host.innerHTML = '<div id="bk-out" class="bk-out"></div>'; }
-    run();
+    if (!host.dataset.init) {
+      host.dataset.init = '1';
+      host.innerHTML = '<div class="bk-tabs"><button type="button" class="bk-tab is-on" data-bk-tab="calc">محاسبه</button><button type="button" class="bk-tab" data-bk-tab="set">تنظیمات KPI</button></div><div id="bk-out" class="bk-out"></div><div id="bk-set" class="bk-out" style="display:none"></div>';
+    }
+    document.querySelectorAll('[data-bk-tab]').forEach(b => b.classList.toggle('is-on', b.dataset.bkTab === bkTab));
+    const o = document.getElementById('bk-out'), st = document.getElementById('bk-set');
+    if (o) o.style.display = bkTab === 'calc' ? '' : 'none'; if (st) st.style.display = bkTab === 'set' ? '' : 'none';
+    if (bkTab === 'set') renderSettings(); else run();
+  }
+  let cfgLoaded = false;
+  async function loadCfg(force) {
+    if (cfgLoaded && !force) return;
+    try {
+      const r = await supabaseClient.from('kpi_settings').select('config').eq('id', 'main').maybeSingle();
+      const c = r && r.data && r.data.config;
+      if (c) {
+        ['free', 'cen'].forEach(t => { if (c[t] && Array.isArray(c[t].items) && c[t].items.length) KPI_RULES[t].items = c[t].items; });
+        if (Number(c.base) > 0) KPI_BASE = Number(c.base);
+      }
+      cfgLoaded = true;
+    } catch (e) { console.warn('kpi_settings', e); }
+  }
+  let draft = null;
+  const kpiEsc = v => String(v == null ? '' : v).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  async function renderSettings() {
+    const host = document.getElementById('bk-set'); if (!host) return;
+    host.innerHTML = '<div class="loading-state">در حال بارگذاری...</div>';
+    await loadCfg(true);
+    draft = JSON.parse(JSON.stringify({ free: KPI_RULES.free.items, cen: KPI_RULES.cen.items, base: KPI_BASE }));
+    drawSettings();
+  }
+  function drawSettings() {
+    const host = document.getElementById('bk-set'); if (!host || !draft) return;
+    const can = currentUserRole === 'supervisor', dis = can ? '' : ' disabled';
+    const teamBlock = t => {
+      const items = draft[t], sw = items.reduce((a, r) => a + (Number(r.w) || 0), 0);
+      const rows = items.map((r, i) => '<tr><td><input data-t="' + t + '" data-i="' + i + '" data-f="l" value="' + kpiEsc(r.l) + '"' + dis + '></td>'
+        + '<td><select data-t="' + t + '" data-i="' + i + '" data-f="k"' + dis + '>' + Object.keys(KPI_SRC).map(k => '<option value="' + k + '"' + (k === r.k ? ' selected' : '') + '>' + KPI_SRC[k] + '</option>').join('') + '</select>'
+        + (r.k === 'manual' ? '<input data-t="' + t + '" data-i="' + i + '" data-f="mv" type="number" step="any" placeholder="مقدار فعلی" value="' + kpiEsc(r.mv) + '"' + dis + '>' : '') + '</td>'
+        + '<td><input data-t="' + t + '" data-i="' + i + '" data-f="u" value="' + kpiEsc(r.u) + '" style="width:70px"' + dis + '></td>'
+        + '<td><input data-t="' + t + '" data-i="' + i + '" data-f="a" type="number" step="any" value="' + kpiEsc(r.a) + '"' + dis + '></td>'
+        + '<td><input data-t="' + t + '" data-i="' + i + '" data-f="b" type="number" step="any" value="' + kpiEsc(r.b) + '"' + dis + '></td>'
+        + '<td><input data-t="' + t + '" data-i="' + i + '" data-f="w" type="number" step="any" value="' + kpiEsc(r.w) + '" style="width:70px"' + dis + '></td>'
+        + '<td>' + (can ? '<button type="button" class="kb-btn ghost" data-bk-del="' + t + ':' + i + '">حذف</button>' : '') + '</td></tr>').join('');
+      return '<div class="bk-team"><div class="bk-team-h">' + KPI_RULES[t].title + ' <small>جمع وزن‌ها: ' + faDigits(sw) + '٪' + (sw !== 100 ? ' — باید ۱۰۰٪ باشد' : '') + '</small></div><div class="bk-tw"><table class="bk-tbl bk-set-tbl"><thead><tr><th>Indicator</th><th>منبع مقدار</th><th>واحد</th><th>Baseline (۰٪)</th><th>Target (۱۰۰٪)</th><th>وزن ٪</th><th></th></tr></thead><tbody>' + rows + '</tbody></table></div>' + (can ? '<button type="button" class="kb-btn ghost" data-bk-add="' + t + '" style="margin-top:8px">+ افزودن Indicator</button>' : '') + '</div>';
+    };
+    host.innerHTML = '<div class="period-label">تنظیمات KPI — برای هر تیم Indicator، Baseline (نقطه‌ی ۰٪)، Target (نقطه‌ی ۱۰۰٪) و وزن</div>'
+      + (can ? '' : '<div class="azki-error" style="display:block">فقط سرپرست می‌تواند تنظیمات را تغییر دهد.</div>')
+      + '<div class="bk-kteams">' + teamBlock('free') + teamBlock('cen') + '</div>'
+      + '<div class="bk-team" style="margin-top:12px"><label class="bk-base">مبلغ پایه‌ی KPI برای هر نفر (ریال): <input data-bk-base type="number" step="any" value="' + kpiEsc(draft.base) + '"' + dis + '></label>'
+      + (can ? ' <button type="button" class="kb-btn" id="bk-save" style="margin-inline-start:12px">ذخیره‌ی تنظیمات</button><span id="bk-save-msg" class="bk-ss" style="display:inline;margin-inline-start:10px"></span>' : '') + '</div>'
+      + '<div class="bk-note">Baseline = مقداری که امتیاز ۰٪ می‌گیرد و Target = مقداری که ۱۰۰٪ می‌گیرد؛ بین این دو خطی است (همان فرمول شیت). جهت بهتر/بدتر خودکار از ترتیب این دو عدد معلوم می‌شود (مثلاً OCT: Baseline ۲۸۰ و Target ۱۸۰). «مقدار دستی» برای شاخصی است که از گزارش‌ها نمی‌آید.</div>';
   }
   // قوانین امتیازدهی KPI — عیناً از شیت «KPI - تیم صدور» (تب «صدور ثالث 1405.08»): امتیاز = clamp((x − a) / (b − a))؛ a = نقطه‌ی صفر، b = نقطه‌ی ۱۰۰٪؛ وزن هر شاخص ۲۰٪ و «امتیاز کل» = جمع امتیازها × ۰٫۲
-  const KPI_RULES = {
+  let KPI_RULES = {
     free: { title: 'تیم صدور ثالث (فریلنسر)', items: [
-      { k: 'oct', l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bug', l: 'Bug Rate فریلنسر', u: '٪', a: 0.06, b: 0.03, d: 4 },
-      { k: 'u1h', l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octAgent', l: 'OCT per Agent', u: 'دقیقه', a: 40, b: 30, manual: true },
-      { k: 'same', l: 'Same Shift', u: '٪', a: 75, b: 85 }] },
+      { k: 'oct', w: 20, l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bug', w: 20, l: 'Bug Rate فریلنسر', u: '٪', a: 0.06, b: 0.03, d: 4 },
+      { k: 'u1h', w: 20, l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octAgent', w: 20, l: 'OCT per Agent', u: 'دقیقه', a: 40, b: 30 },
+      { k: 'same', w: 20, l: 'Same Shift', u: '٪', a: 75, b: 85 }] },
     cen: { title: 'تیم صدور سنتر', items: [
-      { k: 'oct', l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bugC', l: 'Bug Rate مراکز', u: '٪', a: 0.06, b: 0.03, d: 4 },
-      { k: 'u1h', l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octC', l: 'OCT per Center', u: 'دقیقه', a: 40, b: 30 },
-      { k: 'issu', l: 'Issuance Rate (سهم صدور مراکز)', u: '٪', a: 15, b: 30 }] }
+      { k: 'oct', w: 20, l: 'OCT', u: 'دقیقه', a: 280, b: 180 }, { k: 'bugC', w: 20, l: 'Bug Rate مراکز', u: '٪', a: 0.06, b: 0.03, d: 4 },
+      { k: 'u1h', w: 20, l: 'درصد صدور زیر ۱ ساعت', u: '٪', a: 65, b: 75 }, { k: 'octC', w: 20, l: 'OCT per Center', u: 'دقیقه', a: 40, b: 30 },
+      { k: 'issu', w: 20, l: 'Issuance Rate (سهم صدور مراکز)', u: '٪', a: 15, b: 30 }] }
   };
+  const kDec = r => r.d || ((r.k === 'bug' || r.k === 'bugC') ? 4 : 0);
+  const kVal = (r, vals) => r.k === 'manual' ? (r.mv === '' || r.mv == null || !isFinite(+r.mv) ? null : +r.mv) : vals[r.k];
   const kScore = (x, r) => (x == null || !isFinite(x)) ? null : Math.max(0, Math.min(1, (x - r.a) / (r.b - r.a)));
   // افراد و گروه‌بندی طبق شیت «صدور ثالث 1405.08»؛ oa = «OCT per Agent» هر نفر در شیت (قابل ویرایش در جدول)؛ مبلغ پایه ۱۳۵ میلیون ریال برای همه
-  const KPI_BASE = 135000000;
+  let KPI_BASE = 135000000;
   const KPI_GROUPS = [
     { id: 'morning', team: 'free', title: 'شیفت صبح', sup: { n: 'علیرضا زمانیان', r: 'سرپرست صدور شیفت صبح', oa: 34.6 }, leads: [{ n: 'مهدی فراهانی', oa: 30 }, { n: 'فاطمه دهقان‌پور', oa: 35 }, { n: 'آتنا مالمیر', oa: 39 }] },
     { id: 'night', team: 'free', title: 'شیفت شب', sup: { n: 'پارسا فرزان', r: 'سرپرست صدور شیفت شب', oa: 37 }, leads: [{ n: 'مهدی ایازی', oa: 35 }, { n: 'امیررضا فلاح', oa: 39 }] },
     { id: 'center', team: 'cen', title: 'سنتر', sup: { n: 'مهدی غنی‌آبادی', r: 'سرپرست صدور سنتر' }, leads: [{ n: 'شاهین شهریاری' }, { n: 'مبینا لشگری' }, { n: 'هومن قضائی' }, { n: 'سوگند افینی' }, { n: 'مریم ایزدی' }] }
   ];
   const oaGet = p => { try { const v = localStorage.getItem('bk_oa_' + p.n); if (v !== null && v !== '' && isFinite(+v)) return +v; } catch (_) {} return p.oa == null ? null : p.oa; };
-  const kpiTotal = (team, vals) => { let sum = 0, miss = 0; KPI_RULES[team].items.forEach(r => { const sc = kScore(vals[r.k], r); if (sc == null) miss++; else sum += sc; }); return { pct: sum * 0.2, miss }; };
+  const kpiTotal = (team, vals) => { let sum = 0, miss = 0; KPI_RULES[team].items.forEach(r => { const sc = kScore(kVal(r, vals), r); if (sc == null) miss++; else sum += sc * (Number(r.w) || 0) / 100; }); return { pct: sum, miss }; };
   function kpiPeopleHtml(kv, shiftPct) {
     let grand = 0;
     const row = (p, g, isSup) => {
@@ -10147,13 +10201,13 @@ async function centerSettingsRender(host) {
   function kpiTeamHtml(team, vals) {
     const T = KPI_RULES[team]; let sum = 0, miss = 0, amtSum = 0;
     const rows = T.items.map(r => {
-      const x = vals[r.k], sc = kScore(x, r); if (sc == null) miss++; else sum += sc;
-      const pc = sc == null ? 0 : Math.round(sc * 100), amt = sc == null ? 0 : Math.round(sc * 0.2 * KPI_BASE); amtSum += amt;
-      const vtxt = x == null ? '—' : (r.d ? faDigits(x.toFixed(r.d)) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
+      const x = kVal(r, vals), sc = kScore(x, r); if (sc == null) miss++; else sum += sc * (Number(r.w) || 0) / 100;
+      const pc = sc == null ? 0 : Math.round(sc * 100), amt = sc == null ? 0 : Math.round(sc * (Number(r.w) || 0) / 100 * KPI_BASE); amtSum += amt;
+      const vtxt = x == null ? '—' : (kDec(r) ? faDigits(x.toFixed(kDec(r))) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
       const cls = pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo';
-      return '<tr><td class="bk-i">' + r.l + ((vals._sub && vals._sub[r.k]) ? '<small class="bk-ss">' + vals._sub[r.k] + '</small>' : '') + '</td><td>' + faDigits(20) + '٪</td><td class="bk-tg">' + '۰٪ در ' + faDigits(r.a) + '<br>۱۰۰٪ در ' + faDigits(r.b) + '</td><td><b>' + vtxt + '</b></td><td class="bk-sc"><div class="bk-bar"><i style="width:' + pc + '%" class="' + cls + '"></i></div><span>' + faDigits(pc) + '٪</span></td><td>' + f0(amt) + '</td></tr>';
+      return '<tr><td class="bk-i">' + r.l + ((vals._sub && vals._sub[r.k]) ? '<small class="bk-ss">' + vals._sub[r.k] + '</small>' : '') + '</td><td>' + faDigits(Number(r.w) || 0) + '٪</td><td class="bk-tg">' + '۰٪ در ' + faDigits(r.a) + '<br>۱۰۰٪ در ' + faDigits(r.b) + '</td><td><b>' + vtxt + '</b></td><td class="bk-sc"><div class="bk-bar"><i style="width:' + pc + '%" class="' + cls + '"></i></div><span>' + faDigits(pc) + '٪</span></td><td>' + f0(amt) + '</td></tr>';
     }).join('');
-    const tot = Math.round(sum * 0.2 * 100);
+    const tot = Math.round(sum * 100);
     return '<div class="bk-team"><div class="bk-team-h">' + T.title + '</div><div class="bk-tw"><table class="bk-tbl"><thead><tr><th>شاخص</th><th>وزن</th><th>معیار</th><th>مقدار</th><th>%Success</th><th>مبلغ (ریال)</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="4">امتیاز کل' + (miss ? ' · ' + faDigits(miss) + ' شاخص بدون مقدار' : '') + '</td><td class="bk-sc"><div class="bk-bar big"><i style="width:' + tot + '%" class="' + (tot >= 70 ? 'hi' : tot >= 40 ? 'mid' : 'lo') + '"></i></div><span>' + faDigits(tot) + '٪</span></td><td>' + f0(amtSum) + '</td></tr></tfoot></table></div></div>';
   }
   async function run() {
@@ -10163,6 +10217,7 @@ async function centerSettingsRender(host) {
     if (!a.g || !b.g || a.g > b.g) { out.innerHTML = '<div class="azki-error" style="display:block">بازه‌ی تاریخ بالای صفحه معتبر نیست</div>'; return; }
     const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
     try {
+      await loadCfg();
       let [pr, oc, u1, am, er, shR, sl] = await Promise.all([
         fetchAllRows((f, t) => supabaseClient.from(TABLE_AZKI_PERIOD).select('report_date, total_orders, center_orders').eq('company_scope', 'کل').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
@@ -10221,12 +10276,43 @@ async function centerSettingsRender(host) {
         ${warn.length ? '<div class="azki-error" style="display:block">' + warn.join('<br>') + '</div>' : ''}`;
     } catch (e) { if (my === seq) out.innerHTML = '<div class="azki-error" style="display:block">خطا: ' + String(e.message || e).replace(/[<>&]/g, '') + '</div>'; }
   }
+  document.addEventListener('input', ev => {
+    const t = ev.target; if (!draft || !t || !t.dataset) return;
+    if (t.dataset.bkBase !== undefined) { draft.base = Number(t.value) || 0; return; }
+    if (t.dataset.f && t.dataset.t) {
+      const r = draft[t.dataset.t][+t.dataset.i]; if (!r) return; const f = t.dataset.f;
+      r[f] = (f === 'a' || f === 'b' || f === 'w') ? (t.value === '' ? '' : Number(t.value)) : t.value;
+    }
+  });
+  document.addEventListener('change', ev => {
+    const t = ev.target; if (!draft || !t || !t.dataset || t.dataset.f !== 'k') return;
+    draft[t.dataset.t][+t.dataset.i].k = t.value; drawSettings();
+  });
+  document.addEventListener('click', async ev => {
+    const el = ev.target && ev.target.closest ? ev.target.closest('[data-bk-tab],[data-bk-add],[data-bk-del],#bk-save') : null; if (!el) return;
+    if (el.dataset.bkTab) { bkTab = el.dataset.bkTab; render(); return; }
+    if (!draft) return;
+    if (el.dataset.bkAdd) { draft[el.dataset.bkAdd].push({ k: 'manual', w: 0, l: 'Indicator جدید', u: '', a: 0, b: 1, mv: '' }); drawSettings(); return; }
+    if (el.dataset.bkDel) { const [t, i] = el.dataset.bkDel.split(':'); draft[t].splice(+i, 1); drawSettings(); return; }
+    if (el.id === 'bk-save') {
+      const msg = document.getElementById('bk-save-msg');
+      const bad = ['free', 'cen'].some(t => draft[t].some(r => !String(r.l).trim() || r.a === '' || r.b === '' || Number(r.a) === Number(r.b)));
+      if (bad) { if (msg) msg.textContent = 'نام، Baseline و Target هر ردیف را کامل (و متفاوت) وارد کنید'; return; }
+      const cfg = { free: { items: draft.free }, cen: { items: draft.cen }, base: Number(draft.base) || KPI_BASE };
+      el.disabled = true;
+      const r = await supabaseClient.from('kpi_settings').upsert({ id: 'main', config: cfg, updated_at: new Date().toISOString(), updated_by: currentUserId || null });
+      el.disabled = false;
+      if (r.error) { if (msg) msg.textContent = 'ذخیره نشد: ' + r.error.message; return; }
+      KPI_RULES.free.items = draft.free; KPI_RULES.cen.items = draft.cen; KPI_BASE = cfg.base; cfgLoaded = true;
+      if (msg) msg.textContent = 'ذخیره شد ✓';
+    }
+  });
   document.addEventListener('change', ev => {
     const i = ev.target && ev.target.closest && ev.target.closest('[data-bk-oa]'); if (!i) return;
     try { localStorage.setItem('bk_oa_' + i.dataset.bkOa, i.value); } catch (_) {}
     run();
   });
-  window.BK_RUN = () => { const p = document.getElementById('bk-pane'); if (p && p.style.display !== 'none' && p.dataset.init) run(); };
+  window.BK_RUN = () => { const p = document.getElementById('bk-pane'); if (p && p.style.display !== 'none' && p.dataset.init && bkTab === 'calc') run(); };
   document.addEventListener('click', ev => {
     const b = ev.target.closest && ev.target.closest('.bk-sw-btn'); if (!b) return;
     const k = b.dataset.bkView === 'kpi';
