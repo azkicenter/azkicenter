@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=4dc7e421" as="style">
+<link rel="preload" href="assets/app.css?v=53b5adcb" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=4dc7e421"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=53b5adcb"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -10145,16 +10145,16 @@ async function centerSettingsRender(host) {
     return '<div class="bk-people"><div class="bk-team-h" style="margin:4px 0 10px">پاداش KPI به تفکیک افراد <small>(مبلغ پایه ' + f0(KPI_BASE) + ' ریال × امتیاز کل)</small></div>' + blocks + '<div class="bk-total"><span>جمع کل پاداش</span><b>' + f0(grand) + ' ریال</b></div></div>';
   }
   function kpiTeamHtml(team, vals) {
-    const T = KPI_RULES[team]; let sum = 0, miss = 0;
+    const T = KPI_RULES[team]; let sum = 0, miss = 0, amtSum = 0;
     const rows = T.items.map(r => {
       const x = vals[r.k], sc = kScore(x, r); if (sc == null) miss++; else sum += sc;
-      const pc = sc == null ? 0 : Math.round(sc * 100), vtxt = x == null ? '—' : (r.d ? faDigits(x.toFixed(r.d)) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
-      const tgt = faDigits(r.a) + ' ← ۰٪ · ۱۰۰٪ → ' + faDigits(r.b);
-      const inp = '';
-      return '<div class="bk-kr"><div class="bk-kt"><span>' + r.l + ' <em class="bk-w">وزن ۲۰٪</em>' + ((vals._sub && vals._sub[r.k]) ? '<small class="bk-ss">' + vals._sub[r.k] + '</small>' : '') + '</span><b>' + vtxt + inp + '</b></div><div class="bk-bar" title="' + tgt + '"><i style="width:' + pc + '%" class="' + (pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo') + '"></i></div><div class="bk-ks"><span>' + tgt + '</span><b>' + faDigits(pc) + '٪</b></div></div>';
+      const pc = sc == null ? 0 : Math.round(sc * 100), amt = sc == null ? 0 : Math.round(sc * 0.2 * KPI_BASE); amtSum += amt;
+      const vtxt = x == null ? '—' : (r.d ? faDigits(x.toFixed(r.d)) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
+      const cls = pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo';
+      return '<tr><td class="bk-i">' + r.l + ((vals._sub && vals._sub[r.k]) ? '<small class="bk-ss">' + vals._sub[r.k] + '</small>' : '') + '</td><td>' + faDigits(20) + '٪</td><td class="bk-tg">' + faDigits(r.a) + ' ← ۰٪<br>۱۰۰٪ → ' + faDigits(r.b) + '</td><td><b>' + vtxt + '</b></td><td class="bk-sc"><div class="bk-bar"><i style="width:' + pc + '%" class="' + cls + '"></i></div><span>' + faDigits(pc) + '٪</span></td><td>' + f0(amt) + '</td></tr>';
     }).join('');
     const tot = Math.round(sum * 0.2 * 100);
-    return '<div class="bk-team"><div class="bk-team-h">' + T.title + '</div>' + rows + '<div class="bk-total"><span>امتیاز کل (وزن هر شاخص ۲۰٪)' + (miss ? ' · ' + faDigits(miss) + ' شاخص بدون مقدار' : '') + '</span><b>' + faDigits(tot) + '٪</b></div><div class="bk-bar big"><i style="width:' + tot + '%" class="' + (tot >= 70 ? 'hi' : tot >= 40 ? 'mid' : 'lo') + '"></i></div></div>';
+    return '<div class="bk-team"><div class="bk-team-h">' + T.title + '</div><div class="bk-tw"><table class="bk-tbl"><thead><tr><th>شاخص</th><th>وزن</th><th>معیار (حداقل / حداکثر)</th><th>مقدار</th><th>%Success</th><th>مبلغ (ریال)</th></tr></thead><tbody>' + rows + '</tbody><tfoot><tr><td colspan="4">امتیاز کل' + (miss ? ' · ' + faDigits(miss) + ' شاخص بدون مقدار' : '') + '</td><td class="bk-sc"><div class="bk-bar big"><i style="width:' + tot + '%" class="' + (tot >= 70 ? 'hi' : tot >= 40 ? 'mid' : 'lo') + '"></i></div><span>' + faDigits(tot) + '٪</span></td><td>' + f0(amtSum) + '</td></tr></tfoot></table></div></div>';
   }
   async function run() {
     const out = document.getElementById('bk-out'); if (!out) return;

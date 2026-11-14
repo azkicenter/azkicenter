@@ -2697,3 +2697,16 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .bk-w{font-style:normal;font-size:10px;opacity:.55;margin-inline-start:6px}
 .bk-ss{display:block;font-size:11px;opacity:.6;font-weight:400}
 .bk-kt>span{display:block}
+
+.bk-kteams{grid-template-columns:1fr !important}
+.bk-tw{overflow-x:auto}
+.bk-tbl{width:100%;border-collapse:collapse;font-size:13px}
+.bk-tbl th,.bk-tbl td{padding:8px 10px;border-bottom:1px solid rgba(128,128,128,.18);text-align:center;vertical-align:middle}
+.bk-tbl th{font-size:12px;opacity:.7;font-weight:600;white-space:nowrap}
+.bk-tbl td.bk-i{text-align:start;min-width:190px}
+.bk-tbl td.bk-tg{font-size:11px;opacity:.65;white-space:nowrap}
+.bk-tbl td.bk-sc{min-width:140px}
+.bk-tbl td.bk-sc .bk-bar{margin:0 0 3px}
+.bk-tbl td.bk-sc span{font-size:12px;font-weight:600}
+.bk-tbl tfoot td{font-weight:700;border-bottom:0;text-align:start}
+.bk-tbl tfoot td.bk-sc,.bk-tbl tfoot td:last-child{text-align:center}
