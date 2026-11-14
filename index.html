@@ -7991,12 +7991,13 @@ async function setLock(days,locked,all){
 const ags=()=>A.agents[A.sel]||[];
 const aname=id=>(ags().find(a=>a.id===id)||{}).name||A.names[id]||'—';
 const capped=d=>new Date(d+'T00:00:00Z').getUTCDay()===5||!!A.hol[d];
-const cap=()=>Math.max(1,Math.floor(ags().length*PCT));
+const baseCap=()=>Math.max(1,Math.floor(ags().length*PCT));
+const cap=()=>baseCap()*2; // سقف نهایی = ۳۰٪ عادی + ۳۰٪ اضافه
 const dayEn=d=>A.entries.filter(x=>x.day===d);
 const actN=(d,skip)=>dayEn(d).filter(x=>ACT.includes(x.status)&&x.agent_id!==skip).length;
 const capOk=(d,agent,st)=>!capped(d)||!ACT.includes(st)||actN(d,agent)<cap();
 function toast(m){const t=document.createElement('div');t.className='kb-toast';t.textContent=m;t.onclick=()=>t.remove();document.body.appendChild(t);setTimeout(()=>t.remove(),6000)}
-const capMsg=n=>`در روز تعطیل/جمعه حداکثر ${faDigits(Math.round(PCT*100))}٪ نفرات (${faDigits(n==null?cap():n)} نفر) می‌توانند فعال باشند؛ برای بقیه مرخصی ثبت کنید.`;
+const capMsg=n=>`در روز تعطیل/جمعه سهمیه‌ی عادی ${faDigits(Math.round(PCT*100))}٪ نفرات است و حداکثر تا ${faDigits(Math.round(PCT*200))}٪ (${faDigits(n==null?cap():n)} نفر) می‌توانند فعال باشند؛ برای بقیه مرخصی ثبت کنید.`;
 const fmtP=p=>(p||[]).map(x=>faDigits(x[0])+'–'+faDigits(x[1])).join('، ');
 
 async function init(){
@@ -8072,7 +8073,7 @@ function renderSet(){
   const SH={morning:'☀ صبح',night:'🌙 شب'};
   const lane=(d,sh,list)=>`<div class="att-lane" data-shift="${sh}"><div class="att-ln"><span>${SH[sh]}</span>${dayOpen(d)?`<button type="button" data-all="${d}|${sh}">+ همه</button>`:''}</div><div class="att-lc">${list.filter(x=>(x.shift||'morning')===sh).map(chip).join('')}</div></div>`;
   const cols=DN.map((n,i)=>{const d=add(A.week,i),list=dayEn(d).sort((a,b)=>aname(a.agent_id).localeCompare(aname(b.agent_id),'fa')),cp=capped(d),act=actN(d);
-    return `<div class="att-col${A.hol[d]?' hol':''}" data-day="${d}"><div class="att-h"><b>${n}</b><span>${fdate(d)}</span>${A.hol[d]?`<em>${e(A.hol[d])}</em>`:i===6?'<em>جمعه</em>':''}${cp?`<small class="${act>=cap()?'full':''}">${faDigits(act)} از ${faDigits(cap())} فعال</small>`:''}${!cOpen(d)?'<small class="full">🔒 قفل</small>':''}${mgr()?`<button type="button" data-lk="${d}">${cOpen(d)?'🔒 قفل کن':'🔓 باز کن'}</button>`:''}</div><div class="att-chs">${lane(d,'morning',list)}${lane(d,'night',list)}</div></div>`}).join('');
+    return `<div class="att-col${A.hol[d]?' hol':''}" data-day="${d}"><div class="att-h"><b>${n}</b><span>${fdate(d)}</span>${A.hol[d]?`<em>${e(A.hol[d])}</em>`:i===6?'<em>جمعه</em>':''}${cp?`<small class="${act>=cap()?'full':''}">${faDigits(act)} از ${faDigits(baseCap())}${cap()>baseCap()?' (تا '+faDigits(cap())+' با اضافه)':''} فعال</small>`:''}${!cOpen(d)?'<small class="full">🔒 قفل</small>':''}${mgr()?`<button type="button" data-lk="${d}">${cOpen(d)?'🔒 قفل کن':'🔓 باز کن'}</button>`:''}</div><div class="att-chs">${lane(d,'morning',list)}${lane(d,'night',list)}</div></div>`}).join('');
   
   H.innerHTML=`<div class="att">${nextBar()}<div class="att-bar"><div class="att-nav"><button class="kb-btn ghost" id="a-prev" type="button">هفته قبل</button><span>${fdate(A.week)} تا ${fdate(w1)} ${fyear(w1)}</span><button class="kb-btn ghost" id="a-next" type="button">هفته بعد</button></div>${badge}<span class="att-sp"></span>
   ${A.role!=='center'?`<select id="a-c">${A.centers.map(c=>`<option value="${e(c.id)}">${e(c.name)}</option>`).join('')}</select><button class="kb-btn ghost" id="a-sus" type="button">تعلیق کاربر</button>`:''}
@@ -8139,7 +8140,7 @@ function renderStatus(){
   const stOpen=(c,d)=>{const L=D.locks[c+'|'+d];return L?!L.locked:true};
   const calc=(c,d)=>{const list=A.agents[c]||[],m=idx[c+'|'+d]||{},r={total:list.length,present:0,hourly:0,leave:0,weekly_off:0,suspended:0,none:0,mo:0,ni:0,reg:0};
     list.forEach(a=>{const x=m[a.id]; if(!x){r.none++;return} r.reg++; r[x.status]++; if(ACT.includes(x.status)){if((x.shift||'morning')==='night')r.ni++;else r.mo++}});
-    r.act=r.present+r.hourly; r.cap=Math.max(1,Math.floor(r.total*PCT)); r.over=r.total>0&&(new Date(d+'T00:00:00Z').getUTCDay()===5||!!A.hol[d])&&r.act>r.cap; return r};
+    r.act=r.present+r.hourly; r.base=Math.max(1,Math.floor(r.total*PCT)); r.cap=r.base*2; r.over=r.total>0&&(new Date(d+'T00:00:00Z').getUTCDay()===5||!!A.hol[d])&&r.act>r.cap; return r};
   const tot={total:0,present:0,hourly:0,leave:0,weekly_off:0,suspended:0,none:0};
   if(!wk)VC().forEach(c=>{const r=calc(c.id,day);Object.keys(tot).forEach(k=>tot[k]+=r[k])});
   const shiftSet={mo:new Map(),ni:new Map()};
@@ -8442,7 +8443,7 @@ function renderAgent(){
   const sum=Object.keys(ST).filter(k=>cnt[k]).map(k=>`<span class="as-pill" style="--c:${ST[k][1]}">${ST[k][0]} ${faDigits(cnt[k])}</span>`).join('')+(none?`<span class="as-pill" style="--c:#B0892B">ثبت‌نشده ${faDigits(none)}</span>`:'');
   const rules=`<details class="ag-rules"><summary>قوانین ثبت حضور</summary><ul><li>فقط روزهایی که قفل نیستند قابل ثبت‌اند (روزها به‌صورت پیش‌فرض باز هستند و فقط در صورت قفل‌شدن توسط سرگروه بسته می‌شوند؛ برای باز شدن با سنتر خود هماهنگ کنید).</li><li>در جمعه و تعطیلات رسمی حداکثر ${faDigits(Math.round(PCT*100))}٪ نفرات سنتر (${faDigits(g.cap)} نفر از ${faDigits(g.agents)} نفر) می‌توانند فعال باشند؛ برای بقیه مرخصی ثبت کنید.</li><li>«حضور» یعنی مجموع حداقل ۸ ساعت؛ لازم نیست پیوسته باشد (مثلاً ۰۸ تا ۱۲ و ۲۰ تا ۲۴). کمتر از آن «مرخصی ساعتی» است.</li><li>تعلیق را فقط سرگروه تغییر می‌دهد.</li></ul></details>`;
   const cards=days.map((d,i)=>{
-    const m=d.mine, sus=!!m&&m.status==='suspended', myAct=!!m&&ACT.includes(m.status), full=d.capped&&!myAct&&d.active>=g.cap;
+    const m=d.mine, sus=!!m&&m.status==='suspended', myAct=!!m&&ACT.includes(m.status), full=d.capped&&!myAct&&d.active>=(g.hard_cap||g.cap*2);
     const sh=m?(m.shift||'morning'):'morning';
     const per=m?(m.periods&&m.periods.length?m.periods:(m.status==='present'?[SHD[sh]]:null)):null;
     const st=m?`<span class="as-pill" style="--c:${ST[m.status][1]}">${ST[m.status][0]}</span><span>${sh==='night'?'🌙 شب':'☀ صبح'}${per&&(m.status==='present'||m.status==='hourly')?' · '+(m.status==='hourly'?'حضور ':'')+fmtP(per):''}</span>`:'<span class="as-pill" style="--c:#B0892B">ثبت‌نشده</span>';
@@ -8452,7 +8453,7 @@ function renderAgent(){
     else if(!m)act=`<button class="kb-btn ghost" type="button" data-q="${d.day}|morning" ${full?'disabled title="ظرفیت تکمیل است"':''}>☀ صبح</button><button class="kb-btn ghost" type="button" data-q="${d.day}|night" ${full?'disabled title="ظرفیت تکمیل است"':''}>🌙 شب</button><button class="kb-btn ghost" type="button" data-m="${d.day}">سایر</button>`;
     else act=`<button class="kb-btn ghost" type="button" data-m="${d.day}">ویرایش</button><button class="kb-btn del" type="button" data-x="${d.day}">حذف</button>`;
     const hol=d.holiday?`<em>${e(d.holiday)}</em>`:i===6?'<em>جمعه</em>':'';
-    const cp=d.capped?`<small class="${d.active>=g.cap?'full':''}">${faDigits(d.active)} از ${faDigits(g.cap)} فعال</small>`:'';
+    const cp=d.capped?`<small class="${d.active>=(g.hard_cap||g.cap*2)?'full':''}">${faDigits(d.active)} از ${faDigits(g.cap)}${(g.hard_cap||g.cap*2)>g.cap?' (تا '+faDigits(g.hard_cap||g.cap*2)+' با اضافه)':''} فعال</small>`:'';
     return `<div class="ag-day${d.holiday?' hol':''}${d.day===t?' today':''}" style="${m?'--c:'+ST[m.status][1]:''}"><div class="ag-d"><b>${DN[i]}</b><span>${fdate(d.day)}</span>${hol}${cp}</div><div class="ag-st">${st}</div><div class="ag-act">${act}</div></div>`;
   }).join('');
   H.innerHTML=`<div class="att">${nav(badge+csel)}<div class="ag-top">${sum}</div>${rules}<div class="ag-list">${cards}</div></div>`;
@@ -8467,7 +8468,7 @@ function agentModal(day){
   if(!d.open){toast('این روز قفل است');return}
   if(en&&en.status==='suspended'){toast('شما در این روز تعلیق شده‌اید و فقط سرگروه می‌تواند آن را تغییر دهد');return}
   let sh=en?(en.shift||'morning'):'morning';
-  const sts=['present','hourly','leave','weekly_off'], myAct=!!en&&ACT.includes(en.status), full=d.capped&&!myAct&&d.active>=g.cap;
+  const sts=['present','hourly','leave','weekly_off'], myAct=!!en&&ACT.includes(en.status), full=d.capped&&!myAct&&d.active>=(g.hard_cap||g.cap*2);
   const m=overlay(`<b>${DN[di]} ${fdate(day)}</b>
    <div class="rw"><span>شیفت:</span><label><input type="radio" name="x-sh" value="morning" ${sh==='morning'?'checked':''}>☀ صبح</label><label><input type="radio" name="x-sh" value="night" ${sh==='night'?'checked':''}>🌙 شب</label></div>
    <div class="ag-sts">${sts.map(k=>`<label><input type="radio" name="x-s" value="${k}" ${(en?en.status:'present')===k?'checked':''}>${ST[k][0]}</label>`).join('')}</div>
@@ -8482,7 +8483,7 @@ function agentModal(day){
   if(m.q('#x-del'))m.q('#x-del').onclick=()=>{m.close();agClear(day)};
   m.q('#x-ok').onclick=async()=>{
     const st=cur(), fail=t=>{m.q('#x-err').textContent=t;m.q('#x-err').style.display='block'};
-    if(full&&ACT.includes(st))return fail(capMsg(g.cap));
+    if(full&&ACT.includes(st))return fail(capMsg(g.hard_cap||g.cap*2));
     const v=validPer(st,per); if(v.err)return fail(v.err);
     const b=m.q('#x-ok'); b.disabled=true;
     const r=await supabaseClient.rpc('att_agent_set',{p_center:A.sel,p_day:day,p_status:st,p_shift:sh,p_periods:v.periods});
