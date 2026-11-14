@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=e273e1eb" as="style">
+<link rel="preload" href="assets/app.css?v=f65b0f4a" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=e273e1eb"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=f65b0f4a"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -754,6 +754,11 @@
       <div id="sup-view-training" style="display:none;"></div>
 
       <div id="sup-view-azki-payroll" style="display:none;">
+        <div class="bk-switch" id="bk-switch">
+          <button type="button" class="bk-sw-btn is-on" data-bk-view="pay">حقوق</button>
+          <button type="button" class="bk-sw-btn" data-bk-view="kpi">بستن KPI</button>
+        </div>
+        <div id="bk-pane" style="display:none;"></div>
         <div id="azki-pay-main">
         <div class="period-label" id="azki-payroll-label"></div>
         <div class="summary-row">
@@ -10081,6 +10086,78 @@ async function centerSettingsRender(host) {
   window.DISC = { load: load, ensure: ensure, countFor: countFor, refreshBadges: refreshBadges };
 })();
 
+
+// ---- «بستن KPI» داخل محاسبه حقوق سرپرست: بازه را دستی می‌دهی، دو عدد حساب می‌شود ----
+// ۱) سهم صدور مراکز صدور از کل صدور (شخص ثالث + موتور) = Σ center_orders / Σ total_orders  (جدول azki_center_period_report، scope «کل»)
+// ۲) OCT کل (بدون الحاقیه، همه‌ی اپراتورها) = میانگین وزنی OCT روزانه‌ی کارت ۲۳۶۵۳ با وزنِ صدور همان روز (جدول kpi_oct_daily)
+(function () {
+  const en = t => String(t == null ? '' : t).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).trim();
+  const f2 = n => faDigits((Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+  const f0 = n => faDigits(Math.round(n).toLocaleString('en-US'));
+  const parseJ = v => { const m = /^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/.exec(en(v)); if (!m) return null; const y = +m[1], mo = +m[2], d = +m[3]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; return { y, mo, d, j: y + '/' + String(mo).padStart(2, '0') + '/' + String(d).padStart(2, '0'), g: jalaliToGregorian(y, mo, d) }; };
+  const defRange = () => {
+    const now = new Date(), fmt = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tehran', year: 'numeric', month: '2-digit', day: '2-digit' });
+    const [gy, gm, gd] = fmt.format(now).split('-').map(Number); let [jy, jm, jd] = gregorianToJalali(gy, gm, gd);
+    let ey = jy, em = jm; if (jd < 21) { em -= 1; if (em < 1) { em = 12; ey -= 1; } }
+    let sy = ey, sm = em - 1; if (sm < 1) { sm = 12; sy -= 1; }
+    const p = n => String(n).padStart(2, '0');
+    return { from: sy + '/' + p(sm) + '/21', to: ey + '/' + p(em) + '/20' };
+  };
+  let seq = 0;
+  function render() {
+    const host = document.getElementById('bk-pane'); if (!host) return;
+    if (host.dataset.init) return; host.dataset.init = '1';
+    const d = defRange();
+    host.innerHTML = `
+      <div class="bk-range">
+        <label>از تاریخ<input id="bk-from" value="${d.from}" inputmode="numeric" dir="ltr" placeholder="1405/07/21"></label>
+        <label>تا تاریخ<input id="bk-to" value="${d.to}" inputmode="numeric" dir="ltr" placeholder="1405/08/20"></label>
+        <button class="um-btn" id="bk-go" type="button">محاسبه</button>
+      </div>
+      <div id="bk-out" class="bk-out"><div class="empty-state">بازه را وارد کن و «محاسبه» را بزن</div></div>`;
+    host.querySelector('#bk-go').onclick = run;
+    host.querySelectorAll('input').forEach(i => i.addEventListener('keydown', e => { if (e.key === 'Enter') run(); }));
+    run();
+  }
+  async function run() {
+    const out = document.getElementById('bk-out'); if (!out) return;
+    const a = parseJ(document.getElementById('bk-from').value), b = parseJ(document.getElementById('bk-to').value);
+    if (!a || !b || a.g > b.g) { out.innerHTML = '<div class="azki-error">تاریخ‌ها را به شکل 1405/07/21 وارد کن (تاریخ شروع قبل از پایان باشد)</div>'; return; }
+    const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
+    try {
+      const [pr, oc] = await Promise.all([
+        fetchAllRows((f, t) => supabaseClient.from(TABLE_AZKI_PERIOD).select('report_date, total_orders, center_orders').eq('company_scope', 'کل').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
+        fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t))
+      ]);
+      if (my !== seq) return;
+      const days = (Date.UTC(...b.g.split('-').map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.g.split('-').map((x, i) => i === 1 ? x - 1 : +x))) / 864e5 + 1;
+      let tot = 0, cen = 0; const totBy = {};
+      pr.forEach(r => { const t = Number(r.total_orders) || 0, c = Number(r.center_orders) || 0; tot += t; cen += c; totBy[r.report_date] = t; });
+      let ws = 0, wn = 0, ss = 0, sn = 0;
+      oc.forEach(r => { const v = Number(r.oct_avg_hours); if (!isFinite(v)) return; const w = totBy[r.report_date] || 0; ws += v * w; wn += w; ss += v; sn++; });
+      const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
+      const warn = [];
+      if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
+      if (sn < days) warn.push('OCT برای ' + faDigits(days - sn) + ' روز از بازه ثبت نشده است (اگر ورک‌فلو KPI اجرا نشده، یک‌بار اجرایش کن)');
+      out.innerHTML = `
+        <div class="period-label">${faDigits(a.j)} تا ${faDigits(b.j)} — ${faDigits(days)} روز · فقط شخص ثالث خودرو و موتور</div>
+        <div class="summary-row">
+          <div class="summary-card"><div class="label">درصد صدور مراکز صدور از کل</div><div class="value">${pct == null ? '—' : f2(pct) + '٪'}</div><div class="bk-sub">${f0(cen)} از ${f0(tot)} سفارش</div></div>
+          <div class="summary-card"><div class="label">OCT کل (ساعت) · وزنی</div><div class="value">${octW == null ? '—' : f2(octW)}</div><div class="bk-sub">میانگین ساده‌ی روزها: ${octS == null ? '—' : f2(octS)}</div></div>
+        </div>
+        <div class="bk-note">OCT از کارت ۲۳۶۵۳ است (بدون الحاقیه، تاریخ بستن، همه‌ی اپراتورها بدون جداسازی مرکز/فریلنسر) و با تعداد صدور همان روز وزن‌دهی شده. نام‌هایی که «مرکز صدور» دارند مرکز حساب می‌شوند و بقیه فریلنسر.</div>
+        ${warn.length ? '<div class="azki-error" style="display:block">' + warn.join('<br>') + '</div>' : ''}`;
+    } catch (e) { if (my === seq) out.innerHTML = '<div class="azki-error" style="display:block">خطا: ' + String(e.message || e).replace(/[<>&]/g, '') + '</div>'; }
+  }
+  document.addEventListener('click', ev => {
+    const b = ev.target.closest && ev.target.closest('.bk-sw-btn'); if (!b) return;
+    const k = b.dataset.bkView === 'kpi';
+    document.querySelectorAll('.bk-sw-btn').forEach(x => x.classList.toggle('is-on', x === b));
+    document.getElementById('azki-pay-main').style.display = k ? 'none' : '';
+    document.getElementById('bk-pane').style.display = k ? '' : 'none';
+    if (k) render();
+  });
+})();
 </script>
 
 </body>
