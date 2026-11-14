@@ -8614,6 +8614,7 @@ function umRender() {
         <button class="um-btn ghost sm" type="button" data-um-pass="${a.id}">🔑 تغییر رمز</button>
         <button class="um-btn sm ${off ? '' : 'ghost'}" type="button" data-um-toggle="${a.id}" data-um-to="${off ? 'active' : 'disabled'}">${off ? 'فعال کردن' : 'غیرفعال کردن'}</button>
         ${umCan('rename_agent') ? `<button class="um-btn ghost sm" type="button" data-um-rename="${a.id}">✏️ تغییر نام</button>` : ''}
+        ${UM.centers.length > 1 ? `<button class="um-btn ghost sm" type="button" data-um-move="${a.id}">🔀 تغییر سنتر</button>` : ''}
         ${umCan('delete_agent') ? `<button class="um-btn ghost sm danger" type="button" data-um-del="${a.id}">حذف کامل</button>` : ''}
       </div>`;
     }).join('') || '<div class="empty-state">نیرویی در این سنتر نیست</div>';
@@ -8633,8 +8634,9 @@ function umRender() {
 }
 
 function umListClick(e) {
-  const t = e.target.closest('[data-um-ctoggle],[data-um-toggle],[data-um-del],[data-um-lead],[data-um-pass],[data-um-rename],[data-um-head]');
+  const t = e.target.closest('[data-um-ctoggle],[data-um-toggle],[data-um-del],[data-um-lead],[data-um-pass],[data-um-rename],[data-um-move],[data-um-head]');
   if (!t) return;
+  if (t.dataset.umMove) return umMoveModal(t.dataset.umMove);
   if (t.dataset.umPass) return umPassModal(t.dataset.umPass, t.dataset.umKind === 'center');
   if (t.dataset.umRename) return umRenameModal(t.dataset.umRename, t.dataset.umKind === 'center');
   if (t.dataset.umCtoggle) return umToggleCenter(t.dataset.umCtoggle, t.dataset.umTo, t);
@@ -8693,6 +8695,25 @@ function umRenameModal(id, isCenter) {
     if (nm === cur) { m.remove(); return; }
     const b = q('#um-ok'); b.disabled = true;
     try { await umCall({ action: 'rename_user', user_id: id, full_name: nm }); m.remove(); umToast('نام تغییر کرد'); await umLoad(); }
+    catch (e) { b.disabled = false; err.textContent = 'انجام نشد: ' + e.message; err.style.display = 'block'; }
+  };
+}
+
+function umMoveModal(id) {
+  const a = UM.agents.find(x => x.id === id); if (!a) return;
+  const from = UM.centers.find(c => c.id === a.center_id);
+  const m = umModal(`
+    <div class="um-title">تغییر سنتر کاربر</div>
+    <div style="font-size:13px;color:var(--ink-soft);margin-bottom:10px">کاربر: <b>${umEsc(a.full_name || '—')}</b>${a.backoffice_id ? ' — ' + umEsc(a.backoffice_id) : ''}<br>سنتر فعلی: <b>${umEsc(from ? from.name : '—')}</b></div>
+    <label>سنتر جدید<select id="um-mv">${UM.centers.filter(c => c.id !== a.center_id).map(c => `<option value="${c.id}">${umEsc(c.name)}</option>`).join('')}</select></label>
+    <div style="font-size:12px;color:var(--ink-soft);margin:6px 0 8px">فقط عضویت سنتر عوض می‌شود؛ تارگت و صدورهای قبلی کاربر دست‌نخورده می‌ماند. گزارش حقوق از اجرای بعدی ورک‌فلو بر اساس سنتر جدید محاسبه می‌شود.</div>
+    <div class="azki-error" id="um-mve" style="display:none"></div>
+    <div class="um-actions"><button class="um-btn ghost" id="um-x" type="button">انصراف</button><button class="um-btn" id="um-ok" type="button">انتقال</button></div>`);
+  m.querySelector('#um-ok').onclick = async () => {
+    const to = m.querySelector('#um-mv').value, err = m.querySelector('#um-mve'), b = m.querySelector('#um-ok');
+    if (!to) return;
+    b.disabled = true;
+    try { await umCall({ action: 'move_agent', agent_id: id, center_id: to }); m.remove(); UM.open.add(to); umToast('سنتر کاربر تغییر کرد'); await umLoad(); }
     catch (e) { b.disabled = false; err.textContent = 'انجام نشد: ' + e.message; err.style.display = 'block'; }
   };
 }
