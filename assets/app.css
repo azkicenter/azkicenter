@@ -2717,3 +2717,4 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .bk-set-tbl input,.bk-set-tbl select{font:inherit;padding:4px 6px;border:1px solid rgba(128,128,128,.4);border-radius:6px;background:transparent;color:inherit;width:100%;box-sizing:border-box}
 .bk-set-tbl td:first-child input{min-width:180px}
 .bk-base input{font:inherit;padding:4px 8px;border:1px solid rgba(128,128,128,.4);border-radius:6px;background:transparent;color:inherit;width:170px}
+.bk-dir{font-style:normal;font-weight:700;opacity:1;display:inline-block;margin-top:2px}.bk-dir.dn{color:#2e9e5b}.bk-dir.up{color:#2b6fd1}
