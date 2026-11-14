@@ -2683,3 +2683,13 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .bk-total{display:flex;justify-content:space-between;margin-top:6px;padding-top:10px;border-top:1px dashed rgba(128,128,128,.35);font-size:13px}
 .bk-total b{font-size:18px}
 .bk-man{width:90px;font:inherit;padding:2px 6px;margin-inline-start:6px;border:1px solid rgba(128,128,128,.4);border-radius:6px;background:transparent;color:inherit}
+
+.bk-people{margin:8px 0 18px}
+.bk-grp{background:var(--card-bg,#fff);border:1px solid var(--border,#e3e6ec);border-radius:12px;padding:12px 16px;margin-bottom:12px}
+.bk-pr{display:grid;grid-template-columns:minmax(150px,1.2fr) auto minmax(80px,1fr) minmax(110px,auto);gap:12px;align-items:center;padding:7px 0;border-top:1px solid rgba(128,128,128,.15)}
+.bk-pr.sup{border-top:0;font-size:14px}
+.bk-pr:not(.sup){padding-inline-start:22px}
+.bk-pn small,.bk-pi small,.bk-team-h small{display:block;opacity:.6;font-weight:400;font-size:11px}
+.bk-pa{text-align:end;font-size:12px}.bk-pa b{display:block;font-size:15px}
+.bk-pr .bk-bar{margin-top:0}
+@media(max-width:640px){.bk-pr{grid-template-columns:1fr 1fr}}
