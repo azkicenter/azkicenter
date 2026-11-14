@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=70665dfc" as="style">
+<link rel="preload" href="assets/app.css?v=4dc7e421" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=70665dfc"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=4dc7e421"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -10151,7 +10151,7 @@ async function centerSettingsRender(host) {
       const pc = sc == null ? 0 : Math.round(sc * 100), vtxt = x == null ? '—' : (r.d ? faDigits(x.toFixed(r.d)) : f2(x)) + (r.u === '٪' ? '٪' : ' ' + r.u);
       const tgt = faDigits(r.a) + ' ← ۰٪ · ۱۰۰٪ → ' + faDigits(r.b);
       const inp = '';
-      return '<div class="bk-kr"><div class="bk-kt"><span>' + r.l + '</span><b>' + vtxt + inp + '</b></div><div class="bk-bar" title="' + tgt + '"><i style="width:' + pc + '%" class="' + (pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo') + '"></i></div><div class="bk-ks"><span>' + tgt + '</span><b>' + faDigits(pc) + '٪</b></div></div>';
+      return '<div class="bk-kr"><div class="bk-kt"><span>' + r.l + ' <em class="bk-w">وزن ۲۰٪</em>' + ((vals._sub && vals._sub[r.k]) ? '<small class="bk-ss">' + vals._sub[r.k] + '</small>' : '') + '</span><b>' + vtxt + inp + '</b></div><div class="bk-bar" title="' + tgt + '"><i style="width:' + pc + '%" class="' + (pc >= 70 ? 'hi' : pc >= 40 ? 'mid' : 'lo') + '"></i></div><div class="bk-ks"><span>' + tgt + '</span><b>' + faDigits(pc) + '٪</b></div></div>';
     }).join('');
     const tot = Math.round(sum * 0.2 * 100);
     return '<div class="bk-team"><div class="bk-team-h">' + T.title + '</div>' + rows + '<div class="bk-total"><span>امتیاز کل (وزن هر شاخص ۲۰٪)' + (miss ? ' · ' + faDigits(miss) + ' شاخص بدون مقدار' : '') + '</span><b>' + faDigits(tot) + '٪</b></div><div class="bk-bar big"><i style="width:' + tot + '%" class="' + (tot >= 70 ? 'hi' : tot >= 40 ? 'mid' : 'lo') + '"></i></div></div>';
@@ -10202,8 +10202,10 @@ async function centerSettingsRender(host) {
       const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
       const oaAll = KPI_GROUPS.filter(g => g.team === 'free').flatMap(g => [g.sup].concat(g.leads)).map(oaGet).filter(x => x != null); const manAgent = oaAll.length ? oaAll.reduce((a, b) => a + b, 0) / oaAll.length : null;
       const shiftPct = { morning: mpct, night: epct };
+      const ksub = { issu: f0(cen) + ' از ' + f0(tot) + ' سفارش', u1h: f0(uu) + ' از ' + f0(ut) + ' سفارش (کل)', octC: f0(sn2) + ' سفارش · ' + f0(sl.length) + ' مرکز', oct: octS == null ? '' : 'میانگین ساده‌ی روزها: ' + f2(octS * 60) + ' دقیقه',
+        bugC: 'خطا ' + f0(eC) + ' (' + f0(eCn) + ' مورد) از ' + f0(aC), bug: 'خطا ' + f0(eF) + ' (' + f0(eFn) + ' مورد) از ' + f0(aF), same: f0(shY) + ' از ' + f0(shF) + ' سفارش فریلنسر', octAgent: 'میانگین مقدارهای ثبت‌شده‌ی افراد' };
       const octMin = octW == null ? null : octW * 60;
-      const kv = { oct: octMin, bug: bugF, bugC: bugC, u1h: upct, octAgent: manAgent, same: spct, octC: slaAvg, issu: pct };
+      const kv = { _sub: ksub, oct: octMin, bug: bugF, bugC: bugC, u1h: upct, octAgent: manAgent, same: spct, octC: slaAvg, issu: pct };
       const warn = [];
       if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
       if (!fullPeriod) warn.push('OCT per Center برای کل دوره‌ی حقوقی ' + faDigits(pStartLbl) + ' تا ' + faDigits(pEndLbl) + ' است (SLA مراکز فقط به‌صورت دوره‌ای ذخیره می‌شود)');
@@ -10213,17 +10215,6 @@ async function centerSettingsRender(host) {
       if (sn < days) warn.push('OCT برای ' + faDigits(days - sn) + ' روز از بازه ثبت نشده است (اگر ورک‌فلو KPI اجرا نشده، یک‌بار اجرایش کن)');
       out.innerHTML = `
         <div class="period-label">${faDigits(a.j)} تا ${faDigits(b.j)} — ${faDigits(days)} روز · فقط شخص ثالث خودرو و موتور</div>
-        <div class="summary-row">
-          <div class="summary-card"><div class="label">درصد صدور مراکز صدور از کل</div><div class="value">${pct == null ? '—' : f2(pct) + '٪'}</div><div class="bk-sub">${f0(cen)} از ${f0(tot)} سفارش</div></div>
-          <div class="summary-card"><div class="label">درصد صدور زیر یک ساعت (OCT)</div><div class="value">${upct == null ? '—' : f2(upct) + '٪'}</div><div class="bk-sub">${f0(uu)} از ${f0(ut)} سفارش · کل (مرکز + فریلنسر)</div></div>
-          <div class="summary-card"><div class="label">درصد same shift فریلنسرها</div><div class="value">${spct == null ? '—' : f2(spct) + '٪'}</div><div class="bk-sub">${f0(shY)} از ${f0(shF)} سفارش · خرید و صدور در یک شیفت</div></div>
-          <div class="summary-card"><div class="label">same shift · شیفت صبح (۸ تا ۱۶)</div><div class="value">${mpct == null ? '—' : f2(mpct) + '٪'}</div><div class="bk-sub">${f0(shMs)} از ${f0(shMo)} سفارش صادرشده در صبح</div></div>
-          <div class="summary-card"><div class="label">same shift · شیفت عصر (۱۶ تا ۲۴)</div><div class="value">${epct == null ? '—' : f2(epct) + '٪'}</div><div class="bk-sub">${f0(shEs)} از ${f0(shEo)} سفارش صادرشده در عصر</div></div>
-          <div class="summary-card"><div class="label">نرخ باگ مراکز صدور</div><div class="value">${bugC == null ? '—' : f4(bugC) + '٪'}</div><div class="bk-sub">خطا ${f0(eC)} (${f0(eCn)} مورد) از ${f0(aC)}</div></div>
-          <div class="summary-card"><div class="label">نرخ باگ فریلنسرها</div><div class="value">${bugF == null ? '—' : f4(bugF) + '٪'}</div><div class="bk-sub">خطا ${f0(eF)} (${f0(eFn)} مورد) از ${f0(aF)}</div></div>
-          <div class="summary-card"><div class="label">OCT per Center (دقیقه)</div><div class="value">${slaAvg == null ? '—' : f2(slaAvg)}</div><div class="bk-sub">میانگین SLA مراکز صدور · ${f0(sn2)} سفارش · ${f0(sl.length)} مرکز</div></div>
-          <div class="summary-card"><div class="label">OCT کل (ساعت) · وزنی</div><div class="value">${octW == null ? '—' : f2(octW)}</div><div class="bk-sub">میانگین ساده‌ی روزها: ${octS == null ? '—' : f2(octS)}</div></div>
-        </div>
         <div class="bk-kteams">${kpiTeamHtml('free', kv)}${kpiTeamHtml('cen', kv)}</div>
         ${kpiPeopleHtml(kv, shiftPct)}
         <div class="bk-note">OCT از کارت ۲۳۶۵۳ است (بدون الحاقیه، تاریخ بستن، همه‌ی اپراتورها بدون جداسازی مرکز/فریلنسر) و با تعداد صدور همان روز وزن‌دهی شده. نام‌هایی که «مرکز صدور» دارند مرکز حساب می‌شوند و بقیه فریلنسر. same shift: شیفت صبح ۸ تا ۱۶ و عصر ۱۶ تا ۲۴؛ سفارش باید در همان روز و همان شیفتِ خرید صادر شده باشد (مرکز، صدور حضوری و ساعت ۰ تا ۸ حذف/بی‌شیفت). از کارت ۱۷۲۲۹ و بر اساس روز صدور.</div>

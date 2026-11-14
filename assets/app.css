@@ -2693,3 +2693,7 @@ header.topbar{ padding-top:10px !important; padding-bottom:2px !important; }
 .bk-pa{text-align:end;font-size:12px}.bk-pa b{display:block;font-size:15px}
 .bk-pr .bk-bar{margin-top:0}
 @media(max-width:640px){.bk-pr{grid-template-columns:1fr 1fr}}
+
+.bk-w{font-style:normal;font-size:10px;opacity:.55;margin-inline-start:6px}
+.bk-ss{display:block;font-size:11px;opacity:.6;font-weight:400}
+.bk-kt>span{display:block}
