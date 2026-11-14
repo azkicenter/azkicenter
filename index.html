@@ -10117,7 +10117,7 @@ async function centerSettingsRender(host) {
     if (!a.g || !b.g || a.g > b.g) { out.innerHTML = '<div class="azki-error" style="display:block">بازه‌ی تاریخ بالای صفحه معتبر نیست</div>'; return; }
     const my = ++seq; out.innerHTML = '<div class="loading-state">در حال محاسبه...</div>';
     try {
-      let [pr, oc, u1, am, er, ss, sl] = await Promise.all([
+      let [pr, oc, u1, am, er, shR, sl] = await Promise.all([
         fetchAllRows((f, t) => supabaseClient.from(TABLE_AZKI_PERIOD).select('report_date, total_orders, center_orders').eq('company_scope', 'کل').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('kpi_oct_daily').select('report_date, oct_avg_hours').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
         fetchAllRows((f, t) => supabaseClient.from('kpi_under1h_daily').select('report_date, total_orders, under_1h_orders').gte('report_date', a.g).lte('report_date', b.g).order('report_date').range(f, t)),
@@ -10127,8 +10127,8 @@ async function centerSettingsRender(host) {
         (() => { const sp = parseJalaliParts(a.j), ps = periodStartSortOfJalali(sp.jy, sp.jm, sp.jd); return supabaseClient.from(TABLE_CENTER_SLA).select('center_name, avg_issuance_minutes, orders_count').eq('period_start_sort', ps).then(r => Object.assign(r, { ps })); })()
       ]);
       if (my !== seq) return;
-      if (pr.error) throw pr.error; if (oc.error) throw oc.error; if (u1.error) throw u1.error; if (sl.error) throw sl.error; if (am.error) throw am.error; if (er.error) throw er.error; if (ss.error) throw ss.error;
-      const slPs = sl.ps; pr = pr.data || []; oc = oc.data || []; u1 = u1.data || []; sl = sl.data || []; am = am.data || []; er = er.data || []; ss = ss.data || [];
+      if (pr.error) throw pr.error; if (oc.error) throw oc.error; if (u1.error) throw u1.error; if (sl.error) throw sl.error; if (am.error) throw am.error; if (er.error) throw er.error; if (shR.error) throw shR.error;
+      const slPs = sl.ps; pr = pr.data || []; oc = oc.data || []; u1 = u1.data || []; sl = sl.data || []; am = am.data || []; er = er.data || []; shR = shR.data || [];
       const days = (Date.UTC(...b.g.split('-').map((x, i) => i === 1 ? x - 1 : +x)) - Date.UTC(...a.g.split('-').map((x, i) => i === 1 ? x - 1 : +x))) / 864e5 + 1;
       let tot = 0, cen = 0; const totBy = {};
       pr.forEach(r => { const t = Number(r.total_orders) || 0, c = Number(r.center_orders) || 0; tot += t; cen += c; totBy[r.report_date] = t; });
@@ -10149,26 +10149,26 @@ async function centerSettingsRender(host) {
       const f4 = n => faDigits((Math.round(n * 10000) / 10000).toFixed(4));
       let ut = 0, uu = 0; u1.forEach(r => { ut += Number(r.total_orders) || 0; uu += Number(r.under_1h_orders) || 0; });
       const upct = ut ? uu / ut * 100 : null;
-      let sf = 0, sy = 0; ss.forEach(r => { sf += Number(r.freelancer_orders) || 0; sy += Number(r.same_shift_orders) || 0; });
-      const spct = sf ? sy / sf * 100 : null;
-      let mo = 0, ms = 0, eo = 0, es = 0; ss.forEach(r => { mo += Number(r.morning_orders) || 0; ms += Number(r.morning_same) || 0; eo += Number(r.evening_orders) || 0; es += Number(r.evening_same) || 0; });
-      const mpct = mo ? ms / mo * 100 : null, epct = eo ? es / eo * 100 : null;
+      let shF = 0, shY = 0; shR.forEach(r => { shF += Number(r.freelancer_orders) || 0; shY += Number(r.same_shift_orders) || 0; });
+      const spct = shF ? shY / shF * 100 : null;
+      let shMo = 0, shMs = 0, shEo = 0, shEs = 0; shR.forEach(r => { shMo += Number(r.morning_orders) || 0; shMs += Number(r.morning_same) || 0; shEo += Number(r.evening_orders) || 0; shEs += Number(r.evening_same) || 0; });
+      const mpct = shMo ? shMs / shMo * 100 : null, epct = shEo ? shEs / shEo * 100 : null;
       const pct = tot ? cen / tot * 100 : null, octW = wn ? ws / wn : null, octS = sn ? ss / sn : null;
       const warn = [];
       if (pr.length < days) warn.push('گزارش صدور برای ' + faDigits(days - pr.length) + ' روز از بازه ثبت نشده است');
       if (!fullPeriod) warn.push('OCT per Center برای کل دوره‌ی حقوقی ' + faDigits(pStartLbl) + ' تا ' + faDigits(pEndLbl) + ' است (SLA مراکز فقط به‌صورت دوره‌ای ذخیره می‌شود)');
       if (am.length < days) warn.push('مبلغ سفارش‌ها (برای نرخ باگ) برای ' + faDigits(days - am.length) + ' روز از بازه ثبت نشده است (ورک‌فلو KPI را اجرا کن)');
       if (u1.length < days) warn.push('درصد صدور زیر یک ساعت برای ' + faDigits(days - u1.length) + ' روز از بازه ثبت نشده است (ورک‌فلو KPI را اجرا کن)');
-      if (ss.length < days) warn.push('درصد same shift برای ' + faDigits(days - ss.length) + ' روز از بازه ثبت نشده است (ورک‌فلو KPI را اجرا کن)');
+      if (shR.length < days) warn.push('درصد same shift برای ' + faDigits(days - shR.length) + ' روز از بازه ثبت نشده است (ورک‌فلو KPI را اجرا کن)');
       if (sn < days) warn.push('OCT برای ' + faDigits(days - sn) + ' روز از بازه ثبت نشده است (اگر ورک‌فلو KPI اجرا نشده، یک‌بار اجرایش کن)');
       out.innerHTML = `
         <div class="period-label">${faDigits(a.j)} تا ${faDigits(b.j)} — ${faDigits(days)} روز · فقط شخص ثالث خودرو و موتور</div>
         <div class="summary-row">
           <div class="summary-card"><div class="label">درصد صدور مراکز صدور از کل</div><div class="value">${pct == null ? '—' : f2(pct) + '٪'}</div><div class="bk-sub">${f0(cen)} از ${f0(tot)} سفارش</div></div>
           <div class="summary-card"><div class="label">درصد صدور زیر یک ساعت (OCT)</div><div class="value">${upct == null ? '—' : f2(upct) + '٪'}</div><div class="bk-sub">${f0(uu)} از ${f0(ut)} سفارش · کل (مرکز + فریلنسر)</div></div>
-          <div class="summary-card"><div class="label">درصد same shift فریلنسرها</div><div class="value">${spct == null ? '—' : f2(spct) + '٪'}</div><div class="bk-sub">${f0(sy)} از ${f0(sf)} سفارش · خرید و صدور در یک شیفت</div></div>
-          <div class="summary-card"><div class="label">same shift · شیفت صبح (۸ تا ۱۶)</div><div class="value">${mpct == null ? '—' : f2(mpct) + '٪'}</div><div class="bk-sub">${f0(ms)} از ${f0(mo)} سفارش صادرشده در صبح</div></div>
-          <div class="summary-card"><div class="label">same shift · شیفت عصر (۱۶ تا ۲۴)</div><div class="value">${epct == null ? '—' : f2(epct) + '٪'}</div><div class="bk-sub">${f0(es)} از ${f0(eo)} سفارش صادرشده در عصر</div></div>
+          <div class="summary-card"><div class="label">درصد same shift فریلنسرها</div><div class="value">${spct == null ? '—' : f2(spct) + '٪'}</div><div class="bk-sub">${f0(shY)} از ${f0(shF)} سفارش · خرید و صدور در یک شیفت</div></div>
+          <div class="summary-card"><div class="label">same shift · شیفت صبح (۸ تا ۱۶)</div><div class="value">${mpct == null ? '—' : f2(mpct) + '٪'}</div><div class="bk-sub">${f0(shMs)} از ${f0(shMo)} سفارش صادرشده در صبح</div></div>
+          <div class="summary-card"><div class="label">same shift · شیفت عصر (۱۶ تا ۲۴)</div><div class="value">${epct == null ? '—' : f2(epct) + '٪'}</div><div class="bk-sub">${f0(shEs)} از ${f0(shEo)} سفارش صادرشده در عصر</div></div>
           <div class="summary-card"><div class="label">نرخ باگ مراکز صدور</div><div class="value">${bugC == null ? '—' : f4(bugC) + '٪'}</div><div class="bk-sub">خطا ${f0(eC)} (${f0(eCn)} مورد) از ${f0(aC)}</div></div>
           <div class="summary-card"><div class="label">نرخ باگ فریلنسرها</div><div class="value">${bugF == null ? '—' : f4(bugF) + '٪'}</div><div class="bk-sub">خطا ${f0(eF)} (${f0(eFn)} مورد) از ${f0(aF)}</div></div>
           <div class="summary-card"><div class="label">OCT per Center (دقیقه)</div><div class="value">${slaAvg == null ? '—' : f2(slaAvg)}</div><div class="bk-sub">میانگین SLA مراکز صدور · ${f0(sn2)} سفارش · ${f0(sl.length)} مرکز</div></div>
