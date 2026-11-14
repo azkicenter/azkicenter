@@ -9,7 +9,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com https://cdn.jsdelivr.net; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https://cdn.jsdelivr.net https://tile.openstreetmap.org https://server.arcgisonline.com; connect-src 'self' https://paokcjakxxjqtulibegi.supabase.co wss://paokcjakxxjqtulibegi.supabase.co https://docs.google.com https://script.google.com https://*.googleusercontent.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-src 'self'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
-<link rel="preload" href="assets/app.css?v=be11288a" as="style">
+<link rel="preload" href="assets/app.css?v=e273e1eb" as="style">
 <link rel="preload" href="assets/fonts/iransansx-b642f41c.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="assets/fonts/iransansx-28391f57.woff2" as="font" type="font/woff2" crossorigin>
 <title>داشبورد ازکی سنتر</title>
@@ -32,7 +32,7 @@
 <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
 <noscript><link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet"></noscript>
-<link rel="stylesheet" href="assets/app.css?v=be11288a"><script src="vendor/supabase.js"></script>
+<link rel="stylesheet" href="assets/app.css?v=e273e1eb"><script src="vendor/supabase.js"></script>
 <script>if(!window.supabase||!window.supabase.createClient){document.write('<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"><\/script>')}</script>
 </head>
 <body>
@@ -754,11 +754,6 @@
       <div id="sup-view-training" style="display:none;"></div>
 
       <div id="sup-view-azki-payroll" style="display:none;">
-        <div class="kpi-switch" id="kpi-switch">
-          <button type="button" class="kpi-sw-btn is-on" data-kpi-view="pay">حقوق</button>
-          <button type="button" class="kpi-sw-btn" data-kpi-view="kpi">KPI</button>
-        </div>
-        <div id="kpi-pane" style="display:none;"></div>
         <div id="azki-pay-main">
         <div class="period-label" id="azki-payroll-label"></div>
         <div class="summary-row">
@@ -10065,114 +10060,6 @@ async function centerSettingsRender(host) {
   window.DISC = { load: load, ensure: ensure, countFor: countFor, refreshBadges: refreshBadges };
 })();
 
-// ---- زیرتب KPI در محاسبه حقوق سرپرست: ورودی دستی، ذخیره‌ی محلی (localStorage) به‌ازای کاربر ----
-(function () {
-  const GROUPS = [
-    { key: 'fl', title: 'فریلنسر', rows: [
-      ['OCT', 0.2, 234, 180], ['Bug rate', 0.2, 0.06, 0.03], ['%Under 1H', 0.2, 65, 75],
-      ['OCT per Agent', 0.2, 40, 30], ['Same Shift', 0.2, 75, 85] ] },
-    { key: 'ce', title: 'سنتر', rows: [
-      ['OCT', 0.2, 234, 180], ['Bug Rate', 0.2, 0.06, 0.03], ['% Under 1 H', 0.2, 65, 75],
-      ['OCT per Center', 0.2, 40, 30], ['Issuance Rate (درصد صدور کل بازه)', 0.2, 15, 30] ] }
-  ];
-  const DEF = { from: '1405/07/21', to: '1405/08/20', base: 135000000, v: {} };
-  const en = t => String(t == null ? '' : t).replace(/[۰-۹]/g, d => '۰۱۲۳۴۵۶۷۸۹'.indexOf(d)).replace(/[٠-٩]/g, d => '٠١٢٣٤٥٦٧٨٩'.indexOf(d)).replace(/٫/g, '.').replace(/[,٬،\s]/g, '');
-  const num = t => { const x = parseFloat(en(t)); return isFinite(x) ? x : null; };
-  const lsKey = () => 'kpi_v1_' + (typeof currentUserId !== 'undefined' && currentUserId ? currentUserId : 'me');
-  let st = null;
-  function load() {
-    try { st = Object.assign({}, DEF, JSON.parse(localStorage.getItem(lsKey()) || '{}')); } catch (e) { st = Object.assign({}, DEF); }
-    st.v = st.v || {};
-  }
-  function save() { try { localStorage.setItem(lsKey(), JSON.stringify(st)); } catch (e) {} }
-  const fmt = n => String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  const cell = (g, i, f, def) => { const x = st.v[g + i + f]; return x != null ? x : def; };
-  function calc() {
-    const base = num(st.base) || 0;
-    GROUPS.forEach(G => {
-      let tot = 0;
-      G.rows.forEach((r, i) => {
-        const w = num(cell(G.key, i, 'w', r[1])), worst = num(cell(G.key, i, 'a', r[2])), best = num(cell(G.key, i, 'b', r[3])), val = num(st.v[G.key + i + 'v']);
-        let p = null, price = 0;
-        if (val != null && w != null && worst != null && best != null && worst !== best) { p = Math.max(0, Math.min(1, (val - worst) / (best - worst))); price = p * w * base; }
-        tot += price;
-        const pe = document.getElementById('kpi-p-' + G.key + i), pr = document.getElementById('kpi-r-' + G.key + i);
-        if (pe) pe.textContent = p == null ? '—' : faDigits((p * 100).toFixed(1).replace(/\.0$/, '')) + '٪';
-        if (pr) pr.textContent = p == null ? '—' : faDigits(fmt(price));
-      });
-      const t = document.getElementById('kpi-t-' + G.key); if (t) t.textContent = faDigits(fmt(tot));
-    });
-  }
-  function render() {
-    const host = document.getElementById('kpi-pane'); if (!host) return;
-    load();
-    const inp = (id, val, w) => `<input data-kpi="${id}" value="${String(val == null ? '' : val).replace(/"/g, '&quot;')}"${w ? ` style="width:${w}px"` : ''} inputmode="decimal">`;
-    host.innerHTML = `
-      <div class="kpi-range">
-        <label>از تاریخ ${inp('from', st.from, 100)}</label>
-        <label>تا تاریخ ${inp('to', st.to, 100)}</label>
-        <label>مبلغ پایه (ریال) ${inp('base', st.base, 130)}</label>
-      </div>
-      <div id="kpi-oct-note" style="font-size:12.5px;margin:-4px 0 12px;opacity:.85"></div>` + GROUPS.map(G => `
-      <div class="kpi-grp"><h3>${G.title}</h3><div class="kpi-wrap"><table class="kpi-tbl">
-        <thead><tr><th>شاخص</th><th>وزن</th><th>بدترین (۰٪)</th><th>بهترین (۱۰۰٪)</th><th>مقدار</th><th>درصد موفقیت</th><th>مبلغ (ریال)</th></tr></thead>
-        <tbody>${G.rows.map((r, i) => `<tr><td>${r[0]}</td>
-          <td>${inp(G.key + i + 'w', cell(G.key, i, 'w', r[1]))}</td>
-          <td>${inp(G.key + i + 'a', cell(G.key, i, 'a', r[2]))}</td>
-          <td>${inp(G.key + i + 'b', cell(G.key, i, 'b', r[3]))}</td>
-          <td>${inp(G.key + i + 'v', st.v[G.key + i + 'v'])}</td>
-          <td id="kpi-p-${G.key}${i}">—</td><td id="kpi-r-${G.key}${i}">—</td></tr>`).join('')}</tbody>
-        <tfoot><tr><td colspan="6">جمع ${G.title}</td><td id="kpi-t-${G.key}">۰</td></tr></tfoot>
-      </table></div></div>`).join('') +
-      `<div style="font-size:12px;opacity:.7">درصد موفقیت = (مقدار − بدترین) ÷ (بهترین − بدترین)، بین ۰ تا ۱۰۰٪. مبلغ = درصد × وزن × مبلغ پایه. اطلاعات روی همین مرورگر ذخیره می‌شود.</div>`;
-    host.querySelectorAll('input[data-kpi]').forEach(el => el.addEventListener('input', () => {
-      const id = el.dataset.kpi;
-      if (id === 'from' || id === 'to' || id === 'base') st[id] = el.value; else st.v[id] = el.value;
-      save(); calc();
-      if (id === 'from' || id === 'to') { clearTimeout(octTimer); octTimer = setTimeout(fetchOct, 600); }
-    }));
-    calc(); fetchOct();
-  }
-  // OCT per Center = میانگین وزنی (با وزن صدور ازکی سنتر) OCT روزانه‌ی کل سنترها در کل بازه (مثل تب OCT)
-  let octTimer = null, octSeq = 0;
-  async function fetchOct() {
-    const note = document.getElementById('kpi-oct-note'); if (!note) return;
-    const p = t => { const m = en(t).split(/[\/\-]/).map(Number); return m.length === 3 && m.every(Number.isFinite) ? m : null; };
-    const f = p(st.from), t = p(st.to);
-    if (!f || !t) { note.textContent = 'تاریخ را به شکل ۱۴۰۵/۰۷/۲۱ وارد کنید تا OCT کل سنترها محاسبه شود.'; return; }
-    const seq = ++octSeq; note.textContent = 'در حال محاسبه‌ی OCT و درصد صدور کل بازه…';
-    try {
-      const d1 = jalaliToGregorian(f[0], f[1], f[2]), d2 = jalaliToGregorian(t[0], t[1], t[2]);
-      const { data, error } = await fetchAllRows((from, to) => supabaseClient.from(TABLE_AZKI_PERIOD)
-        .select('report_date, total_orders, center_orders, oct_avg_hours').eq('company_scope', 'کل')
-        .gte('report_date', d1).lte('report_date', d2).order('report_date', { ascending: true }).range(from, to));
-      if (seq !== octSeq) return;
-      if (error) throw new Error(error.message);
-      let sw = 0, sv = 0, s1 = 0, n = 0, tot = 0, cen = 0;
-      (data || []).forEach(r => {
-        tot += Number(r.total_orders) || 0; cen += Number(r.center_orders) || 0;
-        if (r.oct_avg_hours == null) return;
-        const v = Number(r.oct_avg_hours), w = Number(r.center_orders) > 0 ? Number(r.center_orders) : 0; sw += w; sv += v * w; s1 += v; n++;
-      });
-      const put = (k, val) => { st.v[k] = String(val); const el = document.querySelector('input[data-kpi="' + k + '"]'); if (el) el.value = String(val); };
-      const parts = [];
-      if (n) { const val = Math.round((sw > 0 ? sv / sw : s1 / n) * 100) / 100; put('ce3v', val); parts.push(`OCT per Center (میانگین وزنی OCT همه‌ی سنترها در کل بازه): ${faDigits(val)} ساعت`); }
-      else parts.push('OCT برای این بازه ثبت نشده؛ دستی وارد کنید');
-      if (tot > 0) { const pc = Math.round(cen / tot * 10000) / 100; put('ce4v', pc); parts.push(`درصد صدور کل بازه: ${faDigits(pc)}٪ (${faDigits(fmt(cen))} از ${faDigits(fmt(tot))})`); }
-      else parts.push('درصد صدور برای این بازه ثبت نشده؛ دستی وارد کنید');
-      save(); calc();
-      note.textContent = parts.join(' — ') + ` — از ${faDigits((data || []).length)} روز داده. خودکار پر شد؛ اگر خواستید می‌توانید دستی عوض کنید.`;
-    } catch (e) { if (seq === octSeq) note.textContent = 'خطا در محاسبه‌ی OCT: ' + e.message + ' — مقدار را دستی وارد کنید.'; }
-  }
-  document.addEventListener('click', ev => {
-    const b = ev.target.closest && ev.target.closest('.kpi-sw-btn'); if (!b) return;
-    const kpi = b.dataset.kpiView === 'kpi';
-    document.querySelectorAll('.kpi-sw-btn').forEach(x => x.classList.toggle('is-on', x === b));
-    document.getElementById('azki-pay-main').style.display = kpi ? 'none' : '';
-    document.getElementById('kpi-pane').style.display = kpi ? '' : 'none';
-    if (kpi) render();
-  });
-})();
 </script>
 
 </body>
